@@ -5,17 +5,15 @@ Skills de infraestructura, aprendizaje, alineamiento y documentación de product
 ## Estructura
 
 ```
-productivity/
-└── ree-producto/                     # Orquestadora de 8 fases para documentación de producto
-    ├── SKILL.md
-    ├── references/
-    │   ├── intake-schema.md
-    │   ├── gate-definitions.md
-    │   └── phase-catalog.md
-    └── templates/
-        └── session-log.md
-
-infrastructure/
+skills/
+├── ree-producto/                     # Orquestadora de 8 fases para documentación de producto
+│   ├── SKILL.md
+│   ├── references/
+│   │   ├── intake-schema.md
+│   │   ├── gate-definitions.md
+│   │   └── phase-catalog.md
+│   └── templates/
+│       └── session-log.md
 ├── reevolutiva-infra-gitops/         # Operación del repo GitOps (Flux + K3s + AKV)
 │   ├── SKILL.md
 │   └── references/
@@ -45,6 +43,15 @@ infrastructure/
     │   └── intake-schema.md
     └── templates/
         └── session-log.md
+
+scripts/                              # Scripts de instalación y actualización
+├── setup.sh
+├── update.sh
+└── install-vm-services.sh
+
+docs/                                 # Documentación interna
+├── infrastructure-README.md
+└── AGENTS.md
 ```
 
 ## Skills disponibles
