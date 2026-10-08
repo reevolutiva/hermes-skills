@@ -1,0 +1,121 @@
+name: Validate Skills
+on:
+  pull_request:
+    paths:
+      - 'skills/**/SKILL.md'
+      - 'skills/**/SKILL.yaml'
+      - 'skills/**/SKILL.yml'
+      - 'skills.sh.json'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find changed skills
+        id: changed
+        run: |
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- skills/ | grep -E 'SKILL\.(md|ya?ml)$' || true > /tmp/changed-skills.txt
+          if [ ! -s /tmp/changed-skills.txt ]; then
+            echo "No skill files changed. Skipping validation."
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Validate skill format
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          set -euo pipefail
+          errors=0
+          echo "### Validating skills..." >> "$GITHUB_STEP_SUMMARY"
+
+          for skill_file in $(cat /tmp/changed-skills.txt); do
+            echo "### $skill_file" >> "$GITHUB_STEP_SUMMARY"
+            skill_name=$(basename "$(dirname "$skill_file")")
+            failed=false
+
+            # 1. Name: lowercase, hyphens only, max 64 chars
+            echo "- **name check**: $skill_name" >> "$GITHUB_STEP_SUMMARY"
+            if ! echo "$skill_name" | grep -qE '^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$'; then
+              echo "  - ❌ name '$skill_name': must be lowercase, hyphens, alphanumeric, 2-64 chars" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error file=$skill_file,title=Name format::Skill name '$skill_name' must be lowercase with hyphens (2-64 chars)"
+              failed=true
+            else
+              echo "  - ✅ name format valid" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            # 2. Parse YAML frontmatter (between first two '---')
+            frontmatter=$(sed -n '/^---$/,/^---$/p' "$skill_file" | sed '1d;$d')
+
+            if [ -z "$frontmatter" ]; then
+              echo "  - ❌ No YAML frontmatter found (must start and end with ---)" >> "$GITHUB_STEP_SUMMARY"
+              echo "::error file=$skill_file,title=Missing frontmatter::No YAML frontmatter found between --- delimiters"
+              failed=true
+            else
+              echo "  - ✅ YAML frontmatter present" >> "$GITHUB_STEP_SUMMARY"
+
+              # 2a. description exists and ≤ 60 chars
+              description=$(echo "$frontmatter" | grep -E '^description:' | head -1 | sed 's/^description:\s*//' | sed 's/^"//;s/"$//')
+              desc_chars=$(echo -n "$description" | wc -c | tr -d ' ')
+              if [ "$desc_chars" -gt 60 ]; then
+                echo "  - ❌ description is $desc_chars chars (max 60)" >> "$GITHUB_STEP_SUMMARY"
+                echo "::error file=$skill_file,title=Description too long::$desc_chars chars (max 60)"
+                failed=true
+              else
+                echo "  - ✅ description: $desc_chars/60 chars" >> "$GITHUB_STEP_SUMMARY"
+              fi
+
+              # 2b. author is Hermes
+              author=$(echo "$frontmatter" | grep -E '^author:' | head -1 | awk '{print $2}')
+              if [ "$author" != "Hermes" ]; then
+                echo "  - ❌ author is '$author' (must be 'Hermes')" >> "$GITHUB_STEP_SUMMARY"
+                echo "::error file=$skill_file,title=Author check::author must be 'Hermes', got '$author'"
+                failed=true
+              else
+                echo "  - ✅ author: Hermes" >> "$GITHUB_STEP_SUMMARY"
+              fi
+
+              # 2c. version is present
+              if ! echo "$frontmatter" | grep -q '^version:'; then
+                echo "  - ❌ version field missing in frontmatter" >> "$GITHUB_STEP_SUMMARY"
+                echo "::error file=$skill_file,title=Missing version::version field is required in frontmatter"
+                failed=true
+              else
+                echo "  - ✅ version present" >> "$GITHUB_STEP_SUMMARY"
+              fi
+            fi
+
+            # 3. Required sections present (in body, after frontmatter)
+            body=$(sed '1{/^---$/!q};/^---$/,/^---$/d' "$skill_file" | sed '1{/^---$/d}')
+            for section in "When to Use" "Procedure" "Pitfalls" "Verification"; do
+              if echo "$body" | grep -qi "## $section"; then
+                echo "  - ✅ section '$section' found" >> "$GITHUB_STEP_SUMMARY"
+              else
+                echo "  - ❌ section '$section' not found" >> "$GITHUB_STEP_SUMMARY"
+                failed=true
+              fi
+            done
+
+            # 4. No secrets in plain text
+            if grep -nE '(sk-[a-zA-Z0-9]{20,}|AKIA[A-Z0-9]{16}|ghp_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9_]{40}|Bearer [A-Za-z0-9_-]{20,}|password:\s*["'"'"'][^"'"'"']+["'"'"'])' "$skill_file"; then
+              echo "  - ❌ Possible secrets/credentials found in plain text" >> "$GITHUB_STEP_SUMMARY"
+              echo "::warning file=$skill_file,title=Secrets detected::Possible plain-text secrets found. Remove or use environment variable placeholders."
+            else
+              echo "  - ✅ No plain-text secrets detected" >> "$GITHUB_STEP_SUMMARY"
+            fi
+
+            if $failed; then
+              errors=$((errors + 1))
+            fi
+          done
+
+          if [ $errors -gt 0 ]; then
+            echo "### ❌ $errors skill(s) failed validation" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          echo "### ✅ All skills passed validation" >> "$GITHUB_STEP_SUMMARY"
