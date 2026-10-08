@@ -4,3 +4,17 @@
 *.swo
 __pycache__/
 .node_modules/
+
+# Secrets
+.env
+*.env.local
+*.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Hermes internals (generated)
+.hermes/
