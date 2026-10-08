@@ -1,11 +1,15 @@
 {
   "name": "Reevolutiva Skills",
-  "description": "Skills de product design y documentación para el pipeline /ree-producto",
+  "description": "Skills de product design, infraestructura, aprendizaje y alineamiento para Hermes Agent",
   "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
   "groupings": [
     {
       "title": "Product Documentation",
       "skills": ["ree-producto"]
+    },
+    {
+      "title": "Infrastructure & Learning",
+      "skills": ["ree-learn"]
     }
   ]
 }
