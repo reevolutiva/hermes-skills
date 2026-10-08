@@ -20,7 +20,7 @@ scripts/                             # Scripts de instalación y actualización
   install-vm-services.sh             # Instalación en vm-services
 .github/
   workflows/
-    block-push-main.yml              # Rechaza push directo a main
+    block-push-main.yml              # Rechaza push directo a main (no bloquea merge PR ni squash (#N))
 skills.sh.json                       # Catálogo para Skills Hub
 AGENTS.md                            # Este archivo
 README.md                            # Documentación general
