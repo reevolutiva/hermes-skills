@@ -17,7 +17,7 @@ hermes skills tap add reevolutiva/hermes-skills 2>/dev/null || echo "   (tap ya 
 echo "==> Instalando skills..."
 for skill in ree-producto ree-learn reevolutiva-infra-gitops wordpress-bedrock-migration wordpress-performance-diagnosis; do
     echo "   ${skill}..."
-    hermes skills install "reevolutiva/skills/${skill}" 2>/dev/null || echo "   (ya instalada)"
+    hermes skills install "reevolutiva/hermes-skills/skills/${skill}" 2>/dev/null || echo "   (ya instalada)"
 done
 
 echo "==> Recargando..."

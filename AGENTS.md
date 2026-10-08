@@ -51,7 +51,7 @@ AGENTS.md              # Este archivo
 hermes skills tap add reevolutiva/hermes-skills
 
 # Instalar skills individuales
-hermes skills install reevolutiva/skills/<skill-name>
+hermes skills install reevolutiva/hermes-skills/skills/<skill-name>
 
 # Actualizar todas
 hermes skills reload
