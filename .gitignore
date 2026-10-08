@@ -1,0 +1,6 @@
+# Skills directory — colaboración Reevolutiva
+.DS_Store
+*.swp
+*.swo
+__pycache__/
+.node_modules/

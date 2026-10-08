@@ -1,0 +1,11 @@
+{
+  "name": "Reevolutiva Skills",
+  "description": "Skills de product design y documentación para el pipeline /ree-producto",
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "groupings": [
+    {
+      "title": "Product Documentation",
+      "skills": ["ree-producto"]
+    }
+  ]
+}
