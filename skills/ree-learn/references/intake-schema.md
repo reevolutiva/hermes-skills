@@ -12,7 +12,7 @@ Define los campos mínimos y opcionales que el agente recolecta antes de ejecuta
 | Campo | Tipo | Descripción | Ejemplo |
 |-------|------|-------------|---------|
 | `error.description` | string | Qué error cometió el agente | "Aplicó kubectl apply en vez de abrir un PR para Flux" |
-| `error.context` | string | Mensaje exacto o transcripción donde ocurrió | "El agente ejecutó: kubectl apply -f infrastructure/..." |
+| `error.context` | string | Mensaje exacto o transcripcion donde ocurrio | "El agente ejecuto: kubectl apply -f skills/..." |
 | `error.policy_violated` | string | Qué regla, skill o política se violó | "Regla GitOps: nunca aplicar manifiestos a mano" |
 
 ### Campos opcionales

@@ -93,6 +93,9 @@ hermes skills install reevolutiva/hermes-skills/skills/wordpress-bedrock-migrati
 hermes skills install reevolutiva/hermes-skills/skills/wordpress-performance-diagnosis
 hermes skills install reevolutiva/hermes-skills/skills/ree-learn
 hermes skills install reevolutiva/hermes-skills/skills/ree-producto
+
+# Actualizar todas
+hermes skills update
 ```
 
 ## Reglas
