@@ -8,18 +8,22 @@ público/compartido en `reevolutiva/hermes-skills`.
 ## Estructura del repositorio
 
 ```
-productivity/          # Skills de productividad y diseño
-infrastructure/        # Skills de infraestructura, DevOps y aprendizaje
-infrastructure/README.md
-scripts/               # Scripts de instalación y actualización
-  setup.sh             # Instalación completa del tap + skills
-  update.sh            # Pull + recarga de skills
-  install-vm-services.sh  # Instalación en vm-services
+skills/                              # Skills (convención Hermes tap: skills/<name>/SKILL.md)
+├── ree-learn/                       # Orquestador de aprendizaje y alineamiento
+├── ree-producto/                    # Documentación de producto en 8 fases
+├── reevolutiva-infra-gitops/        # GitOps: Flux + K3s + AKV
+├── wordpress-bedrock-migration/     # Migración WP Bedrock → K3s
+└── wordpress-performance-diagnosis/ # Diagnóstico de WP en K8s
+scripts/                             # Scripts de instalación y actualización
+  setup.sh                           # Instalación completa del tap + skills
+  update.sh                          # Pull + recarga de skills
+  install-vm-services.sh             # Instalación en vm-services
 .github/
   workflows/
-    block-push-main.yml  # Rechaza push directo a main
-skills.sh.json         # Catálogo para Skills Hub
-AGENTS.md              # Este archivo
+    block-push-main.yml              # Rechaza push directo a main
+skills.sh.json                       # Catálogo para Skills Hub
+AGENTS.md                            # Este archivo
+README.md                            # Documentación general
 ```
 
 ## Flujo de trabajo
@@ -32,7 +36,7 @@ AGENTS.md              # Este archivo
    - Sin secretos ni credenciales
 3. **Commit en rama** `feat/<skill-name>` o `fix/<skill-name>`
 4. **Abrir PR** contra `main`
-5. **Merge → tap se actualiza automáticamente** al hacer `hermes skills reload`
+5. **Merge → `hermes skills update`** para reflejar cambios
 
 ## Reglas de desarrollo
 
@@ -54,14 +58,14 @@ hermes skills tap add reevolutiva/hermes-skills
 hermes skills install reevolutiva/hermes-skills/skills/<skill-name>
 
 # Actualizar todas
-hermes skills reload
+hermes skills update
 ```
 
 ## Instalación en vm-services
 
 ```bash
 ssh giolapietra@vm-services
-bash /data/workspace/projects/reevolutiva-skills/scripts/install-vm-services.sh
+bash /home/giolapietra/reevolutiva-skills/scripts/install-vm-services.sh
 ```
 
 ## Comandos comunes
@@ -72,12 +76,12 @@ cd ~/proyectos/reevolutiva-skills
 git checkout -b feat/<skill-name>
 
 # Validar antes de commit
-grep "^description:" <categoria>/<skill>/SKILL.md | head -1
+grep "^description:" skills/<skill>/SKILL.md | head -1
 echo "<description>" | wc -c  # debe ser ≤ 60
 
 # Sincronizar con upstream
 git checkout main && git pull origin main
 
-# Recargar skills en Hermes
-hermes skills reload
+# Actualizar skills en Hermes
+hermes skills update
 ```
