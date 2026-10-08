@@ -1,6 +1,6 @@
 {
   "name": "Reevolutiva Skills",
-  "description": "Skills de product design, infraestructura, aprendizaje y alineamiento para Hermes Agent",
+  "description": "Skills de infraestructura, aprendizaje, alineamiento y documentación de producto para Hermes Agent",
   "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
   "groupings": [
     {
@@ -8,8 +8,13 @@
       "skills": ["ree-producto"]
     },
     {
-      "title": "Infrastructure & Learning",
-      "skills": ["ree-learn"]
+      "title": "Infrastructure & GitOps",
+      "skills": [
+        "reevolutiva-infra-gitops",
+        "wordpress-bedrock-migration",
+        "wordpress-performance-diagnosis",
+        "ree-learn"
+      ]
     }
   ]
 }
