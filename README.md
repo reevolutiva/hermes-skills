@@ -87,12 +87,14 @@ Flujo en 8 etapas para documentar productos desde cero con intake interactivo y 
 # Como GitHub Tap (compartido con el equipo)
 hermes skills tap add reevolutiva/hermes-skills
 
-# Instalar skills individuales
+# Instalar skills core (productividad y aprendizaje)
+hermes skills install reevolutiva/hermes-skills/skills/ree-learn
+hermes skills install reevolutiva/hermes-skills/skills/ree-producto
+
+# Instalar skills de infraestructura (requieren external_dirs para runbooks operativos)
 hermes skills install reevolutiva/hermes-skills/skills/reevolutiva-infra-gitops
 hermes skills install reevolutiva/hermes-skills/skills/wordpress-bedrock-migration
 hermes skills install reevolutiva/hermes-skills/skills/wordpress-performance-diagnosis
-hermes skills install reevolutiva/hermes-skills/skills/ree-learn
-hermes skills install reevolutiva/hermes-skills/skills/ree-producto
 
 # Actualizar todas
 hermes skills update
