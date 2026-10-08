@@ -3,7 +3,7 @@
 ## Qué es
 
 Túnel **`front`** (`0e205852-572d-48ea-94a1-6c4408727100`), cuenta
-`087e1ddd6b98487b1c4058d8dbad65b3`. Corre en `frontdoor` como el contenedor
+`<CF_ACCOUNT_ID>`. Corre en `frontdoor` como el contenedor
 `litellm-ingress-1`, con `TUNNEL_TOKEN` en el entorno y `network_mode: host`.
 **No hay `docker-compose.yaml`** en `/opt/litellm/`: se creó con `docker run`.
 
@@ -34,9 +34,9 @@ probar explícitamente `CLOUDFLARE-API-TOKEN` y el candidato viejo con typo, y c
 ## Leer y escribir las reglas
 
 ```bash
-ACCT=087e1ddd6b98487b1c4058d8dbad65b3
+ACCT=<CF_ACCOUNT_ID>
 TUN=0e205852-572d-48ea-94a1-6c4408727100
-TOK=$(az keyvault secret show --vault-name giorgio --name cloudlfare-token --query value -o tsv)
+TOK=$(az keyvault secret show --vault-name ${VAULT_NAME} --name cloudlfare-token --query value -o tsv)
 curl -s -H "Authorization: Bearer $TOK" \
   "https://api.cloudflare.com/client/v4/accounts/$ACCT/cfd_tunnel/$TUN/configurations"
 ```
@@ -56,11 +56,11 @@ parece que la cabecera no se aplicó cuando sí está.
 Un deployment de `cloudflared` autentica con el token que le toque: **el nombre del secreto no
 prueba a qué túnel se conectó.** En este repo, el secreto `cloudflare-tunnel-cluster-token`
 abría el túnel **`front`**, mientras el túnel que sirve el camino público es **`produccion`**
-(`b966f583-…`), con su propio token y su propio conector (`cloudflared-produccion`).
+(`<TUNNEL_ID>…`), con su propio token y su propio conector (`cloudflared-produccion`).
 
 ```bash
-CF_TOKEN=$(az keyvault secret show --vault-name giorgio --name cloudlfare-token --query value -o tsv)
-ACC=087e1ddd6b98487b1c4058d8dbad65b3
+CF_TOKEN=$(az keyvault secret show --vault-name ${VAULT_NAME} --name cloudlfare-token --query value -o tsv)
+ACC=<CF_ACCOUNT_ID>
 curl -sS -H "Authorization: Bearer $CF_TOKEN" \
   "https://api.cloudflare.com/client/v4/accounts/$ACC/cfd_tunnel?is_deleted=false" \
   | jq -r '.result[] | "\(.id) \(.name) \(.status)"'
@@ -137,7 +137,7 @@ Y el ruteo se valida **sin el borde**, desde un pod de un namespace que la Netwo
 ```json
 {"config":{"ingress":[
   {"hostname":"jako.reevolutiva.cl","service":"http://127.0.0.1:3978"},
-  {"hostname":"familey.cl","service":"https://100.122.30.76",
+  {"hostname":"familey.cl","service":"https://<TAILSCALE_IP>",
    "originRequest":{"httpHostHeader":"familey.cl",
                     "originServerName":"wordpress-familey.coyote-paridae.ts.net"}},
   {"service":"http_status:404"}
@@ -163,7 +163,7 @@ Si tu configuración remota apunta a `wordpress-*.<ns>.svc.cluster.local`, cualq
    falla: `cloudflared` corre con `network_mode: host` y usa el DNS del host, sin MagicDNS.
    Hay que resolver el nombre a la IP del proxy de ingress y usar `originServerName` para
    el SNI.
-2. **La IP es interina y frágil.** `100.122.30.76` es el proxy del ingress; si el operator
+2. **La IP es interina y frágil.** `<TAILSCALE_IP>` es el proxy del ingress; si el operator
    lo recrea, la IP cambia y el sitio se cae. El destino correcto es cloudflared **dentro**
    del clúster, con las reglas en un ConfigMap.
 3. **La IP real no está en el `.yml` del host.** Leerla por API.

@@ -9,8 +9,8 @@ Las credenciales de la API de Tailscale están en AKV:
 Para hacer cambios:
 
 ```bash
-export TS_CLIENT_ID=$(az keyvault secret show --vault-name giorgio --name tailscale-client-id --query value -o tsv)
-export TS_CLIENT_SECRET=$(az keyvault secret show --vault-name giorgio --name tailscale-client-secret --query value -o tsv)
+export TS_CLIENT_ID=$(az keyvault secret show --vault-name ${VAULT_NAME} --name tailscale-client-id --query value -o tsv)
+export TS_CLIENT_SECRET=$(az keyvault secret show --vault-name ${VAULT_NAME} --name tailscale-client-secret --query value -o tsv)
 
 TOKEN=$(curl -sS -m 15 -X POST "https://api.tailscale.com/api/v2/oauth/token" \
   -d "client_id=${TS_CLIENT_ID}" \
