@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [learning, alignment, error-correction, skill-building, jev, gitops]
     related_skills:
-      - ree-aprender
+      - ree-aprender (absorbida por ree-learn; no se invoca)
       - typesafe-ai
       - ree-kanban-ops
       - reevolutiva-infra-gitops

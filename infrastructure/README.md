@@ -24,7 +24,7 @@ ree-learn (orquestadora de aprendizaje)
 
 | Skill | Rol | Dependencias |
 |-------|-----|-------------|
-| `ree-learn` | Orquestadora de aprendizaje y alineamiento (error + aprender) | `ree-aprender`, `typesafe-ai`, `ree-kanban-ops`, `reevolutiva-infra-gitops` |
+| `ree-learn` | Orquestadora de aprendizaje y alineamiento (error + aprender) | `ree-aprender` (absorbida), `typesafe-ai`, `ree-kanban-ops` |
 
 ## Herramientas Hermes nativas orquestadas
 
