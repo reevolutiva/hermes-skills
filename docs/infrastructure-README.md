@@ -65,7 +65,7 @@ cp -r infrastructure/ree-learn ~/.hermes/skills/infrastructure/
 
 # Desde GitHub Tap
 hermes skills tap add reevolutiva/hermes-skills
-hermes skills install reevolutiva/skills/ree-learn
+hermes skills install reevolutiva/hermes-skills/skills/ree-learn
 ```
 
 ## Uso

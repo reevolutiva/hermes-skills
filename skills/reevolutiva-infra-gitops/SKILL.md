@@ -45,7 +45,7 @@ Si un host no aparece en `kubectl get nodes`, no se puede programar pods ahí.
 
 **Acceso a la VM de Azure sin manejar contraseñas:** `az vm run-command invoke -g REEVOLUTIVA -n produccion --command-id RunShellScript --scripts '<cmd>' -o json` ejecuta como root por el plano de control de Azure. Es la vía preferida para inventariar/provisionar un host que todavía no tiene SSH con clave.
 
-**Secretos en AKV:** los nombres son `<namespace>-<service>-<key>` — p. ej. `monitoring-grafana-admin-user`, `monitoring-grafana-admin-password`, `litellm-masterkey`, `databases-postgresql-password`. Para que el dueño los lea: `az keyvault secret show --vault-name giorgio --name <n> --query value -o tsv`. **Nunca imprimir el valor en el chat**: pasar el comando.
+**Secretos en AKV:** los nombres son `<namespace>-<service>-<key>` — p. ej. `monitoring-grafana-admin-user`, `monitoring-grafana-admin-password`, `litellm-masterkey`, `databases-postgresql-password`. Para que el dueño los lea: `az keyvault secret show --vault-name ${VAULT_NAME} --name <n> --query value -o tsv`. **Nunca imprimir el valor en el chat**: pasar el comando.
 
 **Auth de lo expuesto:** Grafana pide login (AKV); Headlamp pide **token** (`kubectl -n flux-system create token headlamp --duration=24h`; el mínimo son 10 min, con menos la API rechaza); LiteLLM pide masterkey y va por **`http://`**, no https. **Prometheus, Longhorn y Traefik no tienen auth** — el perímetro es el tailnet, y Longhorn permite borrar volúmenes desde la UI. Además el SA de Headlamp está atado a **`cluster-admin`** aunque el HelmRelease declare `clusterReadOnlyAccess: true`: el render del chart no coincide con lo declarado.
 
@@ -417,12 +417,12 @@ Encima, para el **cache** el dueno efectivo es la fila `LiteLLM_CacheConfig` (el
 proxy aplica "Cache settings initialized from database"), que pisa al archivo.
 
 En este repo **Git manda**: el cache se declara en `proxy_config` del HelmRelease
-(con `password: os.environ/REDIS_PASSWORD`, para que el secreto siga solo en AKV)
+(con `password: $REDIS_PASSWORD`, para que el secreto siga solo en AKV)
 y la fila `LiteLLM_CacheConfig` se borra. Claves que el archivo **no** declara
 (`drop_params`, `default_team_params`, `anthropic_*`) le corresponden a la DB.
 
 Claves utiles: `litellm_settings.cache: true` + `cache_params: {type: redis, host,
-port, password: os.environ/REDIS_PASSWORD, namespace: litellm}` y
+port, password: $REDIS_PASSWORD, namespace: litellm}` y
 `enable_redis_auth_cache: true` (sin esto el auth cache queda por-worker en
 memoria y el proxy lo avisa en cada arranque).
 
@@ -524,7 +524,7 @@ y el ExternalSecret es **`litellm-env`** (no `litellm-proxy` ni `kelenfold`); el
 `/etc/rancher/k3s/k3s.yaml`; **no existe `make smoke-test`** (el gate real es `make health`
 más un completion de verdad). Y al rotar una key de Azure: quedan **copias en texto plano**
 fuera del clúster (`/opt/litellm/.env` y los `.env` de los perfiles de Hermes en `frontdoor`,
-`~/.hermes/.env` en `imac27`): limpiarlas es parte de la rotación, y el env muerto
+`(archivo de configuración local)` en `imac27`): limpiarlas es parte de la rotación, y el env muerto
 `AZURE_OPENAI_API_KEY` de `litellm-env` no lo usa ningún modelo.
 
 ## vector-store / PGVector: dos trampas que solo aparecen con el pod corriendo

@@ -1,0 +1,14 @@
+name: Block Push to Main
+on:
+  push:
+    branches: [main]
+jobs:
+  block:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject direct push
+        run: |
+          echo "❌ Push directo a main NO PERMITIDO en reevolutiva/hermes-skills."
+          echo "   Todo cambio debe entrar por PR desde una rama feat/ o fix/."
+          echo "   Ver AGENTS.md -> Flujo de trabajo."
+          exit 1
