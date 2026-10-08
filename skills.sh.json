@@ -8,12 +8,15 @@
       "skills": ["ree-producto"]
     },
     {
+      "title": "Learning & Alignment",
+      "skills": ["ree-learn"]
+    },
+    {
       "title": "Infrastructure & GitOps",
       "skills": [
         "reevolutiva-infra-gitops",
         "wordpress-bedrock-migration",
-        "wordpress-performance-diagnosis",
-        "ree-learn"
+        "wordpress-performance-diagnosis"
       ]
     }
   ]
