@@ -6,6 +6,10 @@ on:
       - 'skills/**/SKILL.yaml'
       - 'skills/**/SKILL.yml'
       - 'skills.sh.json'
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'scripts/validate-skills-catalog.py'
+      - '.github/workflows/validate-skills.yml'
 
 jobs:
   validate:
@@ -16,10 +20,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate skill inventory, catalog, and docs
+        run: python3 scripts/validate-skills-catalog.py
+
       - name: Find changed skills
         id: changed
         run: |
-          git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- skills/ | grep -E 'SKILL\.(md|ya?ml)$' || true > /tmp/changed-skills.txt
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" -- skills/ | grep -E 'SKILL\.(md|ya?ml)$' > /tmp/changed-skills.txt || true
           if [ ! -s /tmp/changed-skills.txt ]; then
             echo "No skill files changed. Skipping validation."
             echo "has_changes=false" >> "$GITHUB_OUTPUT"

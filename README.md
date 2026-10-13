@@ -1,85 +1,70 @@
 # Skills de Reevolutiva
 
-Skills de infraestructura, aprendizaje, alineamiento y documentación de producto para Hermes Agent.
+Skills de infraestructura, aprendizaje, habilitación de repositorios, alineamiento y documentación de producto para Hermes Agent.
 
 ## Estructura
 
 ```
 skills/
-├── ree-producto/                     # Orquestadora de 8 fases para documentación de producto
-│   ├── SKILL.md
-│   ├── references/
-│   │   ├── intake-schema.md
-│   │   ├── gate-definitions.md
-│   │   └── phase-catalog.md
-│   └── templates/
-│       └── session-log.md
-├── reevolutiva-infra-gitops/         # Operación del repo GitOps (Flux + K3s + AKV)
-│   ├── SKILL.md
-│   └── references/
-│       ├── backups-y-rtt.md
-│       ├── cloudflare-tunnel.md
-│       ├── ghcr-imagenes.md
-│       ├── gotchas-verificados.md
-│       ├── alertas-prometheus.md
-│       ├── nodo-flatcar.md
-│       ├── nodo-kit.md
-│       └── tailscale-acl.md
-├── wordpress-bedrock-migration/      # Migración WP Bedrock (single-site y multisite) a K3s
-│   ├── SKILL.md
-│   └── references/
-│       ├── cloudflare-tunnel-cutover.md
-│       ├── image-architecture-checks.md
-│       ├── ghcr-registry.md
-│       └── wp-bedrock-docroot-404-wp-admin.md
-├── wordpress-performance-diagnosis/  # Diagnóstico de WP en K8s: lentitud, caídas, caché
-│   ├── SKILL.md
-│   └── references/
-│       └── probe-recetas.md
-└── ree-learn/                        # Orquestador de aprendizaje y alineamiento (error + aprender)
-    ├── SKILL.md
-    ├── references/
-    │   ├── gate-definitions.md
-    │   └── intake-schema.md
-    └── templates/
-        └── session-log.md
+├── ree-learn/                        # Aprendizaje: error, aprender, actualizar
+├── ree-producto/                     # Documentación de producto en 8 fases
+├── ree-repo/                         # Orquestador F1-F6 de habilitación de repos
+├── ree-repo-architect/               # Diagramas C4 y ADRs
+├── ree-repo-deploy/                  # Manifiestos GitOps y registro Flux
+├── ree-repo-harness/                 # AGENTS.md, integrations y setup
+├── ree-repo-scaffold/                # Repo de código, entorno reproducible y CI
+├── ree-repo-validate/                # Validación de documentos fuente
+├── ree-repo-verify/                  # Coherencia y Definition of Done
+├── reevolutiva-infra-gitops/         # Operación de Flux + K3s + AKV
+├── wordpress-bedrock-migration/      # Migración WordPress Bedrock a K3s
+└── wordpress-performance-diagnosis/  # Diagnóstico de WordPress en K8s
 
-scripts/                              # Scripts de instalación y actualización
+scripts/
 ├── setup.sh
 ├── update.sh
-└── install-vm-services.sh
+├── install-vm-services.sh
+└── validate-skills-catalog.py
 
-docs/                                 # Documentación interna
-├── infrastructure-README.md
-└── AGENTS.md
+.github/workflows/
+├── block-push-main.yml
+└── validate-skills.yml
+
+skills.sh.json
+AGENTS.md
+README.md
+docs/
+├── arquitectura-repositorios.md
+└── infrastructure-README.md
 ```
+
+Cada skill puede incluir su propio `references/` y `templates/` para separar el procedimiento principal del detalle.
 
 ## Skills disponibles
 
+### Aprendizaje y producto
+
+`ree-learn` — tres modos: diagnosticar errores, crear skills y actualizar skills existentes.
+
+`ree-producto` — flujo de 8 fases para documentar productos con intake y gates Jev.
+
+### Habilitación de repositorios
+
+`ree-repo` — orquesta el pipeline F1-F6 desde documentos de producto hasta verificación.
+
+- `ree-repo-validate` — evalúa los documentos fuente antes de implementar.
+- `ree-repo-architect` — genera diagramas C4 y ADRs desde Fase 6.
+- `ree-repo-scaffold` — prepara el repo de código, setup, pruebas y CI; no aloja manifiestos K3s.
+- `ree-repo-deploy` — declara los manifiestos y el placement en `reevolutiva-infra` mediante Flux.
+- `ree-repo-harness` — configura AGENTS.md, integrations, setup y workspace si aplica.
+- `ree-repo-verify` — comprueba coherencia y Definition of Done para el destino elegido.
+
 ### Infraestructura
 
-#### `reevolutiva-infra-gitops`
-Operación del repo GitOps de Reevolutiva: topología de clúster, secretos AKV, migración,
-WordPress, backups, exposición Tailscale/Cloudflare, DNS, alertas, triage P1.
-Regla de oro: todo cambio por Git → PR → merge → Flux.
+`reevolutiva-infra-gitops` — operación del repo GitOps: Flux, K3s, AKV y runbooks operativos.
 
-#### `wordpress-bedrock-migration`
-Migración completa de un WordPress Bedrock (single-site o multisite) a K3s: dump/restore,
-corte de túnel Cloudflare, mixed-content, multi-arquitectura, capas de build.
+`wordpress-bedrock-migration` — migración de WordPress Bedrock single-site o multisite a K3s.
 
-#### `wordpress-performance-diagnosis`
-Diagnóstico de WordPress en Kubernetes: lentitud, caídas, caché (page/object/edge), redirects,
-OOMKilled, cron interno, DaemonSet/taint, almacenamiento.
-
-#### `ree-learn`
-Dos modos:
-- **error** — diagnostica y corrige la fuente raíz de un error usando herramientas nativas Hermes
-- **aprender** — construye una nueva skill orquestada con 4 fases y gates Jev
-
-### Producto
-
-#### `ree-producto`
-Flujo en 8 etapas para documentar productos desde cero con intake interactivo y gates Jev.
+`wordpress-performance-diagnosis` — diagnóstico de latencia, caídas y caché de WordPress en Kubernetes.
 
 ## Instalación
 
@@ -87,11 +72,20 @@ Flujo en 8 etapas para documentar productos desde cero con intake interactivo y 
 # Como GitHub Tap (compartido con el equipo)
 hermes skills tap add reevolutiva/hermes-skills
 
-# Instalar skills core (productividad y aprendizaje)
+# Aprendizaje y producto
 hermes skills install reevolutiva/hermes-skills/skills/ree-learn
 hermes skills install reevolutiva/hermes-skills/skills/ree-producto
 
-# Instalar skills de infraestructura (requieren external_dirs para runbooks operativos)
+# Habilitación de repositorios (orquestador y seis fases)
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo-validate
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo-architect
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo-scaffold
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo-deploy
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo-harness
+hermes skills install reevolutiva/hermes-skills/skills/ree-repo-verify
+
+# Infraestructura y WordPress
 hermes skills install reevolutiva/hermes-skills/skills/reevolutiva-infra-gitops
 hermes skills install reevolutiva/hermes-skills/skills/wordpress-bedrock-migration
 hermes skills install reevolutiva/hermes-skills/skills/wordpress-performance-diagnosis

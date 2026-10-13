@@ -3,7 +3,7 @@ name: wordpress-performance-diagnosis
 category: infrastructure
 version: 1.0.0
 description: "Use when a WordPress in K8s is slow or unhealthy."
-author: Hermes Agent
+author: Hermes
 license: MIT
 metadata:
   hermes:
@@ -25,7 +25,16 @@ cadena desde el borde hacia el pod y separa WordPress de la plataforma.
 El detalle de infraestructura del clúster (nodos, túnel de Cloudflare, Longhorn, secretos)
 no se repite acá: vive en `reevolutiva-infra-gitops` y `wordpress-bedrock-migration`.
 
-## La escalera: subir en orden, no saltarla
+## Confirmar el runtime y la ruta de caché
+
+Antes de empezar a medir latencia, asegúrate de que el web server y la caché declarada coinciden con la plataforma actual:
+
+- Verifica que el deployment corre `openlitespeed` (no Apache) y que el container monta `/usr/local/lsws`; la presencia de `LiteSpeed/1.9.*` en `lshttpd -v` o el tag `openlitespeed` en la imagen es la evidencia que necesitas.
+- Comprueba que el plugin LiteSpeed Cache figura dentro del árbol de Bedrock (`web/app/plugins` o composer.json) y que existe un `object-cache.php` en `web/app` antes de asumir que la page cache o el object cache están activos.
+- Si falta el plugin o el archivo de caché, avísalo como deuda: **no** actives WPs adicionales desde initContainers ni copies el plugin desde el runtime; los cambios de código deben ir al repo del sitio para ser desplegados vía PVC.
+- Redis comparte la misma instancia del clúster (`databases/redis`) y debe usarse con bases lógicas separadas y las variables de entorno `REDIS_HOST`, `REDIS_PORT`, `REDIS_DATABASE` para cada WordPress; documenta que una extensión PHP `redis` debe estar cargada y que el sitio define su `object cache` con esos valores para que las llamadas de LSCWP tengan un backend.
+
+## Procedure — la escalera: subir en orden, no saltarla
 
 Cada escalón descarta una capa. Saltear al de caché es cómo se termina "optimizando" un
 disco que respondía en 0,3 ms.
@@ -145,6 +154,11 @@ Barrer un conjunto de URLs y ver **cuáles redirigen**. Receta y tabla de signif
 `references/probe-recetas.md`: un `301` a `https://` es benigno y un `307` con parámetro
 agregado no.
 
+### 7. Saturación del worker PHP (OpenLiteSpeed y LSAPI)
+
+- Siempre leer `/usr/local/lsws/logs/stderr.log` y `error.log` en los pods OLS después de medir un sitio lento. Si ves **"Reached max children process limit"** repetido o notas `No request delivery notification has been received from LSAPI application` / `ExtConn timed out while processing`, el cuello de botella no está en el nodo: es el tamaño de la piscina de LSAPI. Añadir 1s a la carga (una nueva worker) calma, pero la configuración debe ajustarse en la imagen (LSAPI_CHILDREN / maxConnections) y respetar que cada request aún consume PHP.
+- Contar los hits con `grep -c` y compararlos contra las solicitudes actuales (`kubectl top pods`). Si las métricas muestran cientos o miles de mensajes de límite alcanzado, documentalo como evidencia y sugiere revisar las variables `LSAPI_CHILDREN` y el ratio `max_connections` en el runtime. Cambiar solo los requests/limits del pod sin tocar LSAPI deja el cuello de botella intacto.
+
 ## El sitio CAÍDO (error duro): diagnosticar la cadena, no WordPress
 
 Un `502` no es lentitud: es **ausencia de backend**. La escalera de arriba asume que alguien
@@ -221,7 +235,7 @@ kubectl -n <ns> get events --sort-by=.lastTimestamp | tail -15
   `%{time_starttransfer}`). Un `200` detrás de Cloudflare tampoco prueba que el origen esté
   vivo: puede ser caché.
 
-## Trampas que cuestan rondas enteras
+## Pitfalls — trampas que cuestan rondas enteras
 
 - **No leer `Longhorn` en `-n longhorn-system`.** Sus CRD son *cluster-scoped* y el release
   vive en otro namespace (acá, `flux-system`), así que un
@@ -259,7 +273,7 @@ kubectl -n <ns> get events --sort-by=.lastTimestamp | tail -15
    miles de archivos fuera del volumen replicado por red quita trabajo del camino crítico,
    **pero no arregla un render sin caché**.
 
-## Cerrar el reporte con honestidad
+## Verification — cerrar el reporte con honestidad
 
 Si la causa no se identificó del todo, decirlo así **con lo que sí se midió** (impacto, URLs
  y capas afectadas, lo que se descartó y cómo) y con el siguiente paso concreto. No cerrar

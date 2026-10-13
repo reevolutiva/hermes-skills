@@ -325,6 +325,7 @@ Sin TYPESAFE_API_KEY: marcar `[hermes-judgment]` con nivel de confianza.
 - **Renombrar sin dejar la skill vieja:** si cambias el `name` de una skill y eliminas la vieja, cualquier dependiente que aun no se actualizo tiene un `related_skills` roto. Dejar la vieja con `obsolete: true` y referencia a la nueva hasta que todos los dependientes esten actualizados.
 - **Confundir `actualizar` con `error` o `aprender`:** `actualizar` es para skills existentes que necesitan cambios. Si el problema es un bug de comportamiento del agente (no de contenido de la skill), usar `error`. Si es una skill nueva que no existe, usar `aprender`.
 - **Saltarse la validacion automatica post-cambio:** las validaciones (description ≤60, YAML, secciones, secretos) deben ejecutarse siempre despues de modificar. Si alguna falla, revertir inmediatamente — no commitear una skill rota.
+- **No verificar comandos contra CLI real:** documentar comandos que no existen (ej. `--tap`, flags inventados) genera skills que fallan en produccion. Validar cada comando contra `--help` del CLI real antes de documentarlo. Si no se tiene acceso al CLI, marcarlo con `[verificar]`.
 
 ## Verification
 
@@ -333,7 +334,7 @@ Sin TYPESAFE_API_KEY: marcar `[hermes-judgment]` con nivel de confianza.
 3. `ree-learn actualizar` → verifica dependencias, modifica, valida, actualiza docs.
 4. Sin TYPESAFE_API_KEY → modo fallback.
 5. Skills creadas pasan skills_list y skill_view.
-6. Skills creadas para el tap corporativo aparecen en `hermes skills list --tap reevolutiva/hermes-skills`.
+6. Skills creadas para el tap corporativo aparecen con `hermes skills list` (origen skills.sh o tap) y se pueden verificar con `hermes skills tap list`.
 7. `gh api /repos/reevolutiva/hermes-skills/branches/main/protection` confirma `allow_force_pushes: false, allow_deletions: false`.
 8. `.github/workflows/block-push-main.yml` existe en el repo del tap.
 9. Actualizar una skill con dependientes → dependientes se actualizan o se registran como pendientes.

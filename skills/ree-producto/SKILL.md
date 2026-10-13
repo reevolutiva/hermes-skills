@@ -2,7 +2,7 @@
 name: ree-producto
 description: Flujo en 8 etapas para doc de productos con intake y gates.
 version: 1.0.0
-author: Hermes Agent
+author: Hermes
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
@@ -60,8 +60,9 @@ de gates de validación entre fases, con fallback a razonamiento de Hermes.
 ### Paso 0 — Verificación de entorno
 
 1. Ejecutar `skills_list` y verificar qué subskills requeridas están instaladas.
-2. Para las subskills del Hub no instaladas, listar sus IDs y preguntar al
-   usuario si desea instalarlas ahora con `manage_catalog`.
+2. Para las subskills del Hub no instaladas, listar sus IDs y pedir al usuario
+   que las instale desde su origen. No llamar herramientas de catálogo no
+   disponibles ni continuar suponiendo que ya están instaladas.
 3. Si `TYPESAFE_API_KEY` no está configurada, informar que los gates
    funcionarán en modo fallback (razonamiento de Hermes).
 4. Cargar `skill_view("ree-producto", "references/intake-schema.md")`.
