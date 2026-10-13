@@ -32,12 +32,11 @@ required_environment_variables:
 
 # /ree-repo — Habilitacion de Repositorio
 
-Skill orquestadora que toma los entregables de `/ree-producto` y construye el
-harness completo de desarrollo: valida documentos fuente, genera diagramas de
-arquitectura, crea el scaffolding del repositorio, configura manifiestos
-Flux/K3s segun el modelo GitOps de `reevolutiva-infra`, establece el harness de
-agentes y verifica la coherencia global. Output: un repositorio Git configurado
-y listo para comenzar desarrollo en vm-services mediante Paperclip.
+Skill orquestadora que transforma los entregables de `/ree-producto` en una base
+de desarrollo reproducible: valida documentos, genera diagramas, crea el repo de
+codigo y coordina harness, workspace y verificacion. El repo del proyecto contiene
+codigo, pruebas y CI; los manifiestos K3s viven en `reevolutiva-infra`. Paperclip
+es opcional y preparar un workspace no equivale a desplegar el servicio.
 
 ## When to Use
 
@@ -54,8 +53,8 @@ y listo para comenzar desarrollo en vm-services mediante Paperclip.
         │
         ├── F1: ree-repo-validate — Jev gates sobre docs fuente
         ├── F2: ree-repo-architect — diagramas C4 + ADRs
-        ├── F3: ree-repo-scaffold — estructura repo, CI/CD, apps/<proyecto>/
-        ├── F4: ree-repo-deploy — registro Flux en clusters/<cluster>/apps.yaml
+        ├── F3: ree-repo-scaffold — repo de codigo, setup, pruebas, CI e imagen si aplica
+        ├── F4: ree-repo-deploy — manifiestos en reevolutiva-infra/apps/<proyecto>/ + registro Flux
         ├── F5: ree-repo-harness — AGENTS.md, integrations/, setup.sh, Paperclip
         └── F6: ree-repo-verify — checklist DoD + make health + gate final
 ```
@@ -67,7 +66,7 @@ y listo para comenzar desarrollo en vm-services mediante Paperclip.
 - F4, F5 son independientes entre si pero ambas consumen F2+F3
 - F6 consume todas las anteriores
 
-## Procedimiento
+## Procedure
 
 ### Paso 0 — Verificacion de entorno
 
@@ -83,14 +82,14 @@ y listo para comenzar desarrollo en vm-services mediante Paperclip.
    - Nombre del repo (default: slug del product.name)
    - Organizacion GitHub (default: reevolutiva)
    - Stack (default inferido de Fase 6)
-   - Tipo de manifiesto K3s: HelmRelease, Deployment plano, HelmRelease + extras, o ninguno
-   - Paperclip Company
-   - Workspace path: giolapietra@vm-services:/data/workspace/projects/<repo>
+   - Destino de ejecucion: solo repo/CI, servicio del sistema en vm-services o workload K3s via Flux
+   - Si aplica K3s, tipo de workload a determinar desde los manifiestos vigentes
+   - Si se usara Paperclip: Company y workspace en vm-services:/data/workspace/projects/<repo>
 4. Gate de intake (Jev Choice): `ready_all_phases`, `missing_critical_phase`, `insufficient_detail`.
 
 ### Paso 2 — Seleccion de fases
 
-1. Presentar menu de 6 fases. Por defecto: todas (1→6).
+1. Presentar menu de 6 fases. Por defecto: todas las requeridas por el destino; F4 solo si se eligio despliegue K3s.
 2. Si el usuario salta F1, advertir que no se validaran los docs fuente.
 
 ### Paso 3 — Loop de ejecucion
@@ -120,27 +119,29 @@ Si una fase falla, preguntar si re-ejecutar o continuar.
 | F2 | Architect | `score` | `inaccurate`, `partial`, `accurate`, `comprehensive` |
 | F3 | Scaffold | `score` | `incompleto`, `minimo`, `completo`, `sobreconstruido` |
 | F4 | Deploy | `noul` | "Does the Kustomization follow the canonical pattern?" |
-| F5 | Harness | `noul` | "Does setup.sh cover the complete restore path?" |
+| F5 | Harness | `noul` | "Does the project harness cover the selected development and recovery path without assuming optional integrations?" |
 | F6 | Verify | `score` | `incoherente`, `fragmentado`, `coherente`, `excelente` |
 
 ## Modelo de Despliegue
 
-Tres capas, cada una con un lugar unico de declaracion:
+Cuatro capas, cada una con un lugar unico de declaracion:
 
 | Capa | Se declara en | Reconciliado por |
 |---|---|---|
-| Que corre (imagen, env, recursos) | `apps/<proyecto>/` | Flux Kustomization del cluster |
-| En que maquina corre | `clusters/<cluster>/apps.yaml` | K3s scheduler |
-| Infra compartida | `infrastructure/` | Flux Kustomization del cluster |
+| Codigo, pruebas y CI | Repo del proyecto | GitHub Actions / CI |
+| Que corre (imagen, env, recursos) | `reevolutiva-infra/apps/<proyecto>/` | Flux Kustomization del cluster |
+| En que maquina corre | `reevolutiva-infra/clusters/<activo>/apps.yaml` | K3s scheduler |
+| Infra compartida | `reevolutiva-infra/infrastructure/` | Flux Kustomization del cluster |
 
-Regla: la app no sabe donde corre. La ubicacion es decision del cluster.
+Regla: el repo de codigo no contiene la fuente de verdad de los manifiestos K3s;
+la app no sabe donde corre y la ubicacion es decision del cluster.
 
 Exposicion: Tailscale-only por defecto. Secretos: ExternalSecret → AKV.
 
 ## Pitfalls
 
 - **No duplicar /ree-producto:** si un documento no existe o es insuficiente, detener y derivar a /ree-producto.
-- **Apps/ es source of truth:** los manifests viven en el repo del proyecto, no en infrastructure/kubernetes/.
+- **Repo de codigo y GitOps separados:** el codigo, pruebas y CI viven en el repo del proyecto; los manifiestos K3s viven en `reevolutiva-infra/apps/` y el placement en `clusters/<activo>/apps.yaml`.
 - **HelmRelease vs Deployment plano:** decidir explicitamente en intake.
 - **Tailscale, no publico:** por defecto ingressClassName: tailscale.
 - **ExternalSecret → AKV:** los remoteRef.key deben existir en el vault.
@@ -148,19 +149,19 @@ Exposicion: Tailscale-only por defecto. Secretos: ExternalSecret → AKV.
 - **GitHub auth previo:** verificar gh auth status antes de F3.
 - **Bitacora obligatoria:** escribir .ree-repo-session-<timestamp>.md despues de cada fase.
 - **PR separado en reevolutiva-infra:** F4 abre PR, no commitea directo a main.
-- **Branch protection + workflow anti-push OBLIGATORIOS:** F3 los genera antes del primer commit.
-- **Workspace en vm-services:** F3 clona en vm-services:/data/workspace/projects/<repo>.
-- **Paperclip Company requerida:** sin Company, F5 no puede registrar el proyecto.
+- **Proteccion de main segun el estandar de la organizacion:** configurar los controles antes de depender de ellos; nunca eludirlos ni hacer push directo a main.
+- **Workspace opcional:** solo crear el workspace de vm-services si se eligio Paperclip o ese entorno de desarrollo; no compartir un `.git` escribible entre agentes.
+- **Paperclip condicional:** solo pedir Company y registrar proyecto si Paperclip forma parte del alcance.
 
 ## Verification
 
-1. `skills_list` muestra ree-repo y sus 6 subskills en `productivity`.
+1. `skills.sh.json` y `README.md` enumeran ree-repo y sus 6 subskills; cada path `skills/<name>/SKILL.md` existe.
 2. /ree-repo en proyecto con output de /ree-producto → detecta intake automaticamente.
 3. F1 Validate → gate Jev Score ≥ `minimo` → continua.
 4. F2 Architect → genera 3 diagramas .excalidraw + ADRs.
-5. F3 Scaffold → repo GitHub con apps/<proyecto>/, CI/CD, branch protection.
-6. F4 Deploy → PR en reevolutiva-infra con Kustomization.
-7. F5 Harness → AGENTS.md + integrations/ + Paperclip + setup.sh restore path.
-8. F6 Verify → make health + gate ≥ `coherente` + CHECKLIST.md.
+5. F3 Scaffold → repo de codigo reproducible, setup, pruebas y CI; no contiene manifiestos K3s.
+6. Si se eligio K3s, F4 Deploy → PR en reevolutiva-infra con manifiestos y Kustomization; si no, la fase se omite.
+7. F5 Harness → AGENTS.md + integrations/ + setup.sh; Paperclip se registra solo si fue seleccionado.
+8. F6 Verify → pruebas funcionales y checklist según el destino; para K3s, `make health` + gate ≥ `coherente` + CHECKLIST.md.
 9. Bitacora .ree-repo-session-<timestamp>.md existe y cubre todas las fases.
 10. Push directo a main rechazado: branch protection activa.

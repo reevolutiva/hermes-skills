@@ -3,7 +3,7 @@ name: wordpress-bedrock-migration
 category: infrastructure
 version: 0.3.0
 description: "Migrar Bedrock WP (single-site o multisite) a K3s."
-author: Hermes Agent
+author: Hermes
 license: MIT
 metadata:
   hermes:
@@ -45,7 +45,7 @@ Always confirm the expected mount target inside the container **matches the bedr
 3) Run **WordPress core upgrade** for multisite (defer plugin/theme upgrades).
 4) Validate quickly and run an anti-mixed-content remediation.
 
-## Workflow (Investigar → Definir → Planificar → Implementar → Actualizar)
+## Procedure — Workflow (Investigar → Definir → Planificar → Implementar → Actualizar)
 
 ### 1) INVESTIGAR (origen)
 - Confirm runtime: bedrock multisite layout.
@@ -459,6 +459,14 @@ resultado instantáneo.
   degrada en redirects a `wp-signup.php?new=...`. El gate de aceptación del restore en
   multisite debe incluir presencia de tablas globales de red, no solo conteo total.
 - **Después de restaurar DB, valida `template`/`stylesheet` antes de declarar paridad visual.** El dump puede dejar activo un theme distinto al esperado (por ejemplo fallback a tema por defecto) y el sitio seguirá "arriba" pero con identidad visual incorrecta.
+
+## Verification
+
+- DB restaurada y consistente; en multisite existen también las tablas globales de red.
+- WordPress responde por el endpoint esperado; valida la home y al menos una ruta de contenido y la REST API.
+- HTTPS/certificado y mixed content pasan el checklist; assets y URLs corresponden al dominio aprobado.
+- Se ejecutó una prueba funcional del sitio y se anotaron los resultados antes del cutover.
+- Dump, archivos y rollback están disponibles; no se eliminan datos persistentes antes de la aceptación.
 
 ## Rollback
 - Keep SQL dump + WP tarball immutable.

@@ -1,6 +1,6 @@
 {
   "name": "Reevolutiva Skills",
-  "description": "Skills de infraestructura, aprendizaje, alineamiento y documentación de producto para Hermes Agent",
+  "description": "Skills de infraestructura, aprendizaje, habilitación de repositorios, alineamiento y documentación de producto para Hermes Agent",
   "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
   "groupings": [
     {
@@ -10,6 +10,18 @@
     {
       "title": "Learning & Alignment",
       "skills": ["ree-learn"]
+    },
+    {
+      "title": "Repository Enablement",
+      "skills": [
+        "ree-repo",
+        "ree-repo-validate",
+        "ree-repo-architect",
+        "ree-repo-scaffold",
+        "ree-repo-deploy",
+        "ree-repo-harness",
+        "ree-repo-verify"
+      ]
     },
     {
       "title": "Infrastructure & GitOps",

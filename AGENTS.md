@@ -8,19 +8,30 @@ público/compartido en `reevolutiva/hermes-skills`.
 ## Estructura del repositorio
 
 ```
-skills/                              # Skills (convención Hermes tap: skills/<name>/SKILL.md)
-├── ree-learn/                       # Orquestador de aprendizaje y alineamiento
+skills/                              # Convención del tap: skills/<name>/SKILL.md
+├── ree-learn/                       # Aprendizaje: error, aprender, actualizar
 ├── ree-producto/                    # Documentación de producto en 8 fases
+├── ree-repo/                        # Orquestador de habilitación F1-F6
+├── ree-repo-architect/              # Diagramas C4 + ADRs
+├── ree-repo-deploy/                 # Manifiestos GitOps + registro Flux
+├── ree-repo-harness/                # AGENTS.md, integrations y setup
+├── ree-repo-scaffold/               # Repo de código, entorno y CI
+├── ree-repo-validate/               # Validación de documentos fuente
+├── ree-repo-verify/                 # Coherencia y Definition of Done
 ├── reevolutiva-infra-gitops/        # GitOps: Flux + K3s + AKV
 ├── wordpress-bedrock-migration/     # Migración WP Bedrock → K3s
 └── wordpress-performance-diagnosis/ # Diagnóstico de WP en K8s
-scripts/                             # Scripts de instalación y actualización
-  setup.sh                           # Instalación completa del tap + skills
-  update.sh                          # Pull + recarga de skills
-  install-vm-services.sh             # Instalación en vm-services
-.github/
-  workflows/
-    block-push-main.yml              # Rechaza push directo a main (no bloquea merge PR ni squash (#N))
+scripts/
+  setup.sh
+  update.sh
+  install-vm-services.sh
+  validate-skills-catalog.py
+.github/workflows/
+  block-push-main.yml
+  validate-skills.yml
+docs/
+  arquitectura-repositorios.md
+  infrastructure-README.md
 skills.sh.json                       # Catálogo para Skills Hub
 AGENTS.md                            # Este archivo
 README.md                            # Documentación general
@@ -46,6 +57,7 @@ README.md                            # Documentación general
 - **Toda skill orquestada incluye `## Jev Integration Points`**
 - **Referencias en `references/`**, templates en `templates/` — no mezclar
 - **Skills existentes se referencian en `metadata.hermes.related_skills`**, no se duplican
+- **Inventario atómico** — toda skill debe aparecer en AGENTS.md, README.md y skills.sh.json en el mismo PR; validar con `python3 scripts/validate-skills-catalog.py`
 - **Usar `TYPESAFE_API_KEY`** cuando esté disponible; fallback `[hermes-judgment]` si no
 
 ## Instalación (para usuarios)

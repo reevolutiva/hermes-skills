@@ -8,13 +8,13 @@ category: productivity
 tags: [ree-repo, harness, agents, paperclip, hermes, restore-path, mcp]
 ---
 
-# ree-repo-harness — F5: Configuración de Agentes y Restore Path
+# ree-repo-harness — F5: Configuración de agentes y entorno
 
-Establece AGENTS.md, opencode.json, integrations/, MCP, scripts/setup.sh con restore path completo (git clone → AKV → backup → systemd), y registra el proyecto en Paperclip. Sin este harness, los agentes autónomos no pueden operar y no hay plan de recuperación tras destrucción de vm-services.
+Establece AGENTS.md, configuración de agentes, integrations y setup según el stack y destino elegidos. El repo de aplicación contiene código y CI; los manifiestos K3s viven en `reevolutiva-infra`. Paperclip, vm-services y el restore path se configuran solo cuando forman parte del alcance; no imponer AKV, systemd ni un workspace a todos los proyectos.
 
 ## When to Use
 
-- Desde `/ree-repo` orquestadora (F5), después de F3 Scaffold y F4 Deploy.
+- Desde `/ree-repo` orquestadora (F5), después de F3 Scaffold; F4 es independiente y solo se ejecuta si aplica K3s.
 - "configurar agentes", "preparar harness", "crear setup.sh", "registrar en Paperclip".
 - Trigger: el proyecto necesita que los agentes AI puedan trabajar autónomamente.
 
@@ -24,71 +24,65 @@ Establece AGENTS.md, opencode.json, integrations/, MCP, scripts/setup.sh con res
 
 Incluir:
 - Stack y arquitectura (desde Fase 6)
-- Modelo de despliegue (GitOps, Flux, `apps/<proyecto>/`)
+- Separación entre repo de código, `reevolutiva-infra/apps/<proyecto>/` y placement en `clusters/<activo>/apps.yaml`
 - Convenciones de código (naming, linting, testing)
-- Comandos comunes (`npm run dev`, `npm test`, `make health`)
+- Comandos comunes (`npm run dev`, `npm test` y `make health` solo si aplica K3s)
 - Agentes disponibles y cómo invocarlos
 - Flujo de trabajo (branch feat/ → PR → review → merge)
-- Restore path y troubleshooting
+- Restore path y troubleshooting del runtime elegido, si aplica
 
-### 2. Generar opencode.json
+### 2. Generar opencode.json (si se selecciona OpenCode)
 
-Crear `config/opencode.json`:
+Si OpenCode forma parte del harness, crear `config/opencode.json`:
 - Permisos granulares (lectura, edición, bash)
 - MCP servers requeridos
 - Skills cargadas
 - Agentes definidos
 
-### 3. Registrar proyecto en Paperclip
+### 3. Registrar proyecto en Paperclip (si aplica)
 
-- Usar la Paperclip Company proporcionada en intake
-- Crear el proyecto dentro de esa compañía apuntando al workspace `vm-services:/data/workspace/projects/<repo>`
-- Verificar: `paperclip project list --company <company>` muestra el proyecto
+- Si Paperclip fue seleccionado en intake, usar la Company proporcionada.
+- Crear el proyecto apuntando al workspace acordado; no asumir vm-services si se eligió otro entorno.
+- Verificar con `paperclip project list --company <company>` solo cuando se haya creado el registro.
+- Si Paperclip no fue seleccionado, omitir este paso y anotarlo en la bitácora.
 
 ### 4. Generar integrations/hermes/
 
 `integrations/hermes/config.yaml` — configuración canónica del gateway Hermes:
 - Nombre del proyecto
-- Ruta del workspace en vm-services
+- Ruta del workspace elegido, solo si se aprovisiona uno
 - MCP servers requeridos
 - Skills propias del proyecto
 
-`integrations/hermes/env.template` — solo nombres de variables (valores → AKV `giorgio`):
+`integrations/hermes/env.template` — solo nombres de variables (valores → gestor de secretos aprobado; AKV `giorgio` cuando corresponda):
 - Cada variable con comentario descriptivo
-- Nombres que coinciden con `externalsecret.yaml` `remoteRef.key`
+- Nombres que coinciden con `externalsecret.yaml` `remoteRef.key` cuando se use ExternalSecret
 - Nunca valores reales
 
 `integrations/hermes/skills/` — skills propias del proyecto (si las tiene).
 
-### 5. Generar integrations/paperclip/
+### 5. Generar integrations/paperclip/ (si aplica)
 
-Configuración de Paperclip:
+Si Paperclip fue seleccionado, configurar:
 - Adaptadores y contextos
 - Skills que Paperclip puede delegar a agentes
 - MCP servers accesibles desde el workspace
 
-### 6. Generar config/paperclip-context.md
+### 6. Generar config/paperclip-context.md (si aplica)
 
-Contexto que Paperclip inyecta a los agentes al delegar tareas:
+Si Paperclip fue seleccionado, documentar el contexto que inyecta a los agentes:
 - Stack y arquitectura
 - Convenciones del proyecto
 - Comandos útiles
 - Variables de entorno requeridas (nombres, no valores)
 
-### 7. Generar scripts/setup.sh
+### 7. Generar scripts/setup.sh cuando el destino lo requiera
 
-Wizard bash que cubre el restore path completo:
-
-```bash
-#!/bin/bash
-# Restore path: git clone → AKV secrets → backup restore → systemd enable
-
-# Paso 1: git clone
-# Paso 2: Leer env.template → pedir valores → guardar en AKV giorgio
-# Paso 3: Restaurar desde backup (scripts/backup-agentes.sh de reevolutiva-infra)
-# Paso 4: systemctl enable --now <service>
-# Paso 5: make health
-```
+Crear `setup.sh` solo si aporta un bootstrap o recuperación repetible. Para un servicio
+vm-services/systemd, documentar checkout, configuración secreta aprobada, restore de datos
+si aplica, activación y health check. Para K3s, limitarlo al entorno de desarrollo: Flux
+gestiona workloads y ExternalSecret/AKV gestiona secretos. Para un repo sin runtime propio,
+no generar un script de recuperación artificial. Nunca incluir valores secretos.
 
 ### 8. Gate F5
 
@@ -99,28 +93,27 @@ Jev Noul: ≥ 0.7.
 | Punto | Primitivo | Pregunta |
 |---|---|---|
 | Cobertura de agentes | noul | "Does the agent harness cover context, skills, tools, and MCP servers?" |
-| Restore path | noul | "Does setup.sh cover git clone → AKV → backup restore → systemd enable?" |
+| Setup/restore path | noul | "Does the setup procedure cover the selected target without bypassing GitOps or exposing secrets?" |
 | Gate F5 | noul | Threshold ≥ 0.7. Evalúa completitud del harness y restore path. |
 
 ## Pitfalls
 
-- **Integrations/ son parte del restore path**: si `integrations/` no está completo, `setup.sh` no puede restaurar el agente tras destrucción de vm-services.
-- **env.template sin valores reales**: solo nombres de variables. Los valores van a AKV `giorgio`.
-- **Paperclip Company requerida**: sin Company definida, no se puede registrar el proyecto. Preguntar al usuario.
-- **opencode.json debe ser válido**: validar con `jq empty opencode.json` antes de commit.
-- **setup.sh debe ser ejecutable**: `chmod +x scripts/setup.sh`.
-- **Restore path completo**: si falta algún paso (clone, AKV, backup, systemd), el harness está incompleto.
+- **Integra solo los sistemas seleccionados**: Paperclip y el restore path de vm-services son condicionales; no los declares listos si no fueron implementados.
+- **env.template sin valores reales**: solo nombres de variables; los valores van al gestor de secretos aprobado para el destino.
+- **Paperclip Company condicional**: solo pedir Company y registrar proyecto cuando Paperclip forme parte del alcance.
+- **opencode.json debe ser válido**: si se genera, validar con `jq empty opencode.json` antes del PR.
+- **setup.sh debe ser ejecutable**: si se genera, validar permisos y probarlo en un checkout limpio.
+- **Restore path según destino**: exigir backup/systemd solo para servicios que realmente usan ese runtime; K3s se recupera por GitOps.
 - **No duplicar AGENTS.md base**: extender, no reescribir, las convenciones de `reevolutiva-infra`.
 
 ## Verification
 
-1. `AGENTS.md` existe con stack, despliegue, convenciones, flujo de trabajo y restore path.
-2. `config/opencode.json` existe y es JSON válido.
-3. `paperclip project list --company <company>` muestra el proyecto.
+1. `AGENTS.md` existe con stack, separación código/GitOps, convenciones, flujo de trabajo y recuperación aplicable.
+2. Si OpenCode fue seleccionado, `config/opencode.json` existe y es JSON válido.
+3. Si Paperclip fue seleccionado, `paperclip project list --company <company>` muestra el proyecto; si no, la omisión queda documentada.
 4. `integrations/hermes/config.yaml` existe.
 5. `integrations/hermes/env.template` tiene solo nombres de variables (no valores).
-6. `integrations/paperclip/` contiene config de Paperclip.
-7. `config/paperclip-context.md` existe.
-8. `scripts/setup.sh` existe, es ejecutable, y cubre los 4 pasos del restore path.
-9. Gate F5 ≥ 0.7.
-10. `skills_list` muestra `ree-repo-harness` en categoría `productivity`.
+6. Si Paperclip fue seleccionado, `integrations/paperclip/` y `config/paperclip-context.md` existen.
+7. `scripts/setup.sh` existe solo si aplica, es ejecutable y sus pasos corresponden al destino.
+8. Gate F5 ≥ 0.7.
+9. `skills_list` muestra `ree-repo-harness` en categoría `productivity`.

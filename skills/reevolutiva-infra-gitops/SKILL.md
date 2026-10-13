@@ -3,7 +3,7 @@ name: reevolutiva-infra-gitops
 category: infrastructure
 version: 1.0.0
 description: "Use when operating the reevolutiva-infra GitOps repo."
-author: Hermes Agent
+author: Hermes
 license: MIT
 metadata:
   hermes:
@@ -18,19 +18,9 @@ Cualquier tarea sobre el monorepo `reevolutiva-infra` (Flux CD + K3s de
 Reevolutiva): migrar cargas legacy, agregar un proyecto, tocar manifiestos,
 diagnosticar el clúster, documentar deuda técnica.
 
-**Topología objetivo — ADR 0012 (verificada 2026-10-07)**
+**Topología activa:** no mantengas direcciones, roles ni nodos como hechos estáticos en esta skill. Al comenzar una tarea de clúster, consulta el endpoint del kubeconfig seleccionado y `kubectl get nodes -o wide`; para decisiones de scheduling, consulta arquitectura, labels y taints en runtime. Un instalador/config local puede apuntar a un servidor retirado o describir un clúster distinto. Si el endpoint o la identidad del clúster no coincide con el objetivo, detente antes de ejecutar acciones mutantes.
 
-| Host | Tailnet | Público | Arch | Rol real |
-|---|---|---|---|---|
-| `imac27` | 100.95.198.5 | — | **amd64** | Nodo K3s (control-plane). Corre Docker de agentes |
-| `produccion` | 100.85.96.127 | 4.148.16.117 | **arm64** | **Nodo K3s de producción** (Azure `REEVOLUTIVA`, westus3): Flatcar `Standard_E8pds_v6` (8 vCPU/62 GB), taint `env=prod:NoSchedule` aplicado desde el Ignition, disco de datos de 256 GB en Longhorn (250,9 GiB útiles) |
-| `frontdoor` | 100.89.96.125 | **134.33.97.82** | arm64 | Host **Docker** legacy en retiro. **NO es nodo del clúster** |
-| `hosting` | 100.114.42.76 | 20.163.115.157 | amd64 | Host **Docker** legacy + **K3s propio huérfano** (73d, sin cargas). No federado |
-
-**La arquitectura decide qué imagen puede correr dónde, y los dos nodos NO
-coinciden: `imac27` es amd64 y `produccion` es arm64.** Antes de mover una carga al
-nodo nuevo, verificar que su imagen sea multi-arch; una amd64-only **no arranca**
-ahí. Medirlo, no asumirlo: `kubectl get nodes -o custom-columns='N:.metadata.name,A:.status.nodeInfo.architecture'`.
+**La arquitectura decide qué imagen puede correr dónde.** Antes de mover una carga, verifica las arquitecturas actuales con `kubectl get nodes -o custom-columns='N:.metadata.name,A:.status.nodeInfo.architecture'` y confirma las plataformas de la imagen. Obtén el endpoint API del kubeconfig activo; no lo deduzcas del nombre o la IP de un host.
 
 **Regla de guardarraíl (si NO es multi-arch): declarar `nodeSelector` por `kubernetes.io/arch`.**
 - Imagen amd64-only ⇒ `nodeSelector: kubernetes.io/arch: amd64`
@@ -40,31 +30,37 @@ Porque el scheduler no sabe qué arquitectura soporta la imagen: el síntoma fin
 puede ser `ImagePullBackOff` (si el registry no tiene manifiesto para la arch)
 o `exec format error` (si el manifiesto existe pero falla en runtime).
 
-Verificar antes de asumir: `kubectl get nodes` y `tailscale status`.
-Si un host no aparece en `kubectl get nodes`, no se puede programar pods ahí.
+Usa `tailscale status` solo cuando la conectividad o identidad tailnet sea relevante; un host ausente de `kubectl get nodes` no es elegible para scheduling, aunque aparezca en Tailscale.
 
 **Acceso a la VM de Azure sin manejar contraseñas:** `az vm run-command invoke -g REEVOLUTIVA -n produccion --command-id RunShellScript --scripts '<cmd>' -o json` ejecuta como root por el plano de control de Azure. Es la vía preferida para inventariar/provisionar un host que todavía no tiene SSH con clave.
 
-**Secretos en AKV:** los nombres son `<namespace>-<service>-<key>` — p. ej. `monitoring-grafana-admin-user`, `monitoring-grafana-admin-password`, `litellm-masterkey`, `databases-postgresql-password`. Para que el dueño los lea: `az keyvault secret show --vault-name ${VAULT_NAME} --name <n> --query value -o tsv`. **Nunca imprimir el valor en el chat**: pasar el comando.
+**Secretos en AKV:** los nombres son `<namespace>-<service>-<key>` — p. ej. `monitoring-grafana-admin-user`, `monitoring-grafana-admin-password`, `litellm-masterkey`, `databases-postgresql-password`. Para que el dueño los lea, verificar primero `command -v az`: el comando `az keyvault secret show --vault-name ${VAULT_NAME} --name <n> --query value -o tsv` requiere **Azure CLI (`az`)**, no Azure Developer CLI (`azd`). Si falta `az`, instalar Azure CLI según la documentación oficial de Microsoft; luego autenticar con `az login` y seleccionar la suscripción correcta antes de consultar AKV. **Nunca imprimir el valor en el chat**: entregar el comando para ejecutarlo localmente. Si el secreto solo se necesita para probar un servicio, guardarlo en una variable de shell y usarlo directamente sin mostrarlo.
 
-**Auth de lo expuesto:** Grafana pide login (AKV); Headlamp pide **token** (`kubectl -n flux-system create token headlamp --duration=24h`; el mínimo son 10 min, con menos la API rechaza); LiteLLM pide masterkey y va por **`http://`**, no https. **Prometheus, Longhorn y Traefik no tienen auth** — el perímetro es el tailnet, y Longhorn permite borrar volúmenes desde la UI. Además el SA de Headlamp está atado a **`cluster-admin`** aunque el HelmRelease declare `clusterReadOnlyAccess: true`: el render del chart no coincide con lo declarado.
+**Auth de lo expuesto:** Grafana pide login (AKV); Headlamp pide **token** (`kubectl -n flux-system create token headlamp --duration=24h`; el mínimo son 10 min, con menos la API rechaza); LiteLLM pide masterkey y su URL vigente usa **`https://`** con TLS del Ingress Tailscale. **Prometheus, Longhorn y Traefik no tienen auth** — el perímetro es el tailnet, y Longhorn permite borrar volúmenes desde la UI. Además el SA de Headlamp está atado a **`cluster-admin`** aunque el HelmRelease declare `clusterReadOnlyAccess: true`: el render del chart no coincide con lo declarado.
 
-Verificar antes de asumir: `kubectl get nodes` y `tailscale status`.
-Si un host no aparece en `kubectl get nodes`, no se puede programar pods ahí.
 
 **Checkouts:** dev en `/data/workspace/projects/reevolutiva-infra`; despliegue en
 `/data/workspace/workloads/reevolutiva-infra`. No existe `/opt/workspaces`.
 
 **Acceso:**
 ```bash
-export KUBECONFIG=/etc/rancher/k3s/k3s.yaml          # en imac27
+# Selecciona el kubeconfig vigente para el clúster objetivo; confirma su server
+# con `kubectl config view --minify` antes de consultar nodos o ejecutar cambios.
 ssh -o StrictHostKeyChecking=no giolapietra@frontdoor
 ssh -o StrictHostKeyChecking=no giolapietra@hosting
 ```
 Los hosts legacy cargan mucho (load >40 por agentes): los comandos tardan. Subir
 `timeout` en vez de repetir.
 
-## Gates de verificación (usar SIEMPRE antes de declarar algo terminado)
+## Procedure
+
+1. Confirma el repo, kubecontext, host y manifiestos actuales antes de actuar; no uses topología histórica como estado vivo.
+2. Selecciona el runbook de esta skill que corresponda al cambio o incidente y sigue sus gates específicos.
+3. Para incidentes de WordPress con error de subida de archivos (`Could not create directory structure` o similares), diagnostica primero dentro del pod: valida existencia de la ruta completa bajo `web/app/uploads`, dueño/grupo y bit de escritura del directorio padre, y prueba una escritura real en la ruta objetivo.
+4. Si el incidente exige recuperación inmediata y el fix no puede esperar el ciclo GitOps, aplica un hotfix mínimo en runtime (crear ruta faltante y permisos exactos), verifica que la escritura funciona, y en el mismo flujo abre el cambio declarativo equivalente en Git para evitar drift.
+5. Mantén el estado duradero en Git mediante PR y Flux; verifica el runtime y una prueba funcional antes de cerrar.
+
+## Verification — gates obligatorios antes de declarar algo terminado
 
 ```bash
 make lint        # kustomize build de los 11 dirs + parseo YAML. Falla de verdad
@@ -93,6 +89,10 @@ curl -sS -o /dev/null -w '%{http_code} ssl=%{ssl_verify_result}\n' \
 # síntoma es "wrong version number", estás mirando la exposición vieja.)
 ```
 
+## Kustomizations suspendidas, fallidas o parcialmente operativas
+
+No confundas `spec.suspend`, las condiciones Ready/Healthy, `wait` y la operación funcional de la app. Antes de cambiar una suspensión, contrasta intención de diseño, manifiesto Git y runtime real. Si el servicio debe operar, declara `spec.suspend: false` en el overlay y aplica el cambio por PR; si la pausa es intencional, declara `true` con motivo y criterio de reanudación. Antes de reanudar, revisa qué recursos/PVCs se crearán y si hay datos o una ruta legacy que preservar. Sigue `references/kustomization-operational-status.md` para la clasificación, reconciliación por dependencias y pruebas funcionales.
+
 ## Incidente P1 (sitios públicos caídos): runbook de triage
 
 ### Trigger
@@ -102,7 +102,7 @@ curl -sS -o /dev/null -w '%{http_code} ssl=%{ssl_verify_result}\n' \
 ### Orden de acciones (siempre en este orden)
 1. **Valida scheduling real del clúster** (gating duro) — y validá que estés mirando el clúster correcto:
    - `kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'`, y después `kubectl get nodes -o wide`.
-   - **Tras una migración de control-plane hay DOS clústeres y el viejo conserva a los nodos mudados como miembros fantasma `NotReady`.** Diagnosticar con el kubeconfig viejo (el de `imac27`) lee "produccion NotReady" cuando el clúster nuevo (server `produccion`, `/tmp/produccion-kubeconfig.yaml`) tiene los 3 nodos `Ready` y los pods corriendo. Preguntá a qué server apunta el kubeconfig **antes** de creer un `NotReady`.
+   - **Puede haber varios clústeres con nombres de nodos coincidentes y estados distintos.** Confirma el `server` del kubeconfig y consulta los nodos en ese mismo contexto antes de interpretar `NotReady` o actuar; no fijes endpoints ni rutas de kubeconfig en el diagnóstico.
    - Si el/los nodos destino están `NotReady` **en el clúster correcto** y tus workloads usan `nodeSelector/env=prod`, los pods quedan `Pending`/`ContainerCreating` hasta que el nodo vuelva.
 2. **Valida el estado declarativo (Flux)** solo para acotar si hay una regresión GitOps:
    - `flux get ks -A | egrep 'wordpress|familey|reevolutiva'`
@@ -137,7 +137,7 @@ permanente detrás de una NetworkPolicy, y una serie ausente que no dispara): en
 `references/alertas-prometheus.md`. Regla corta: **el valor va directo, la alerta no puede depender de
 un canal que el diseño cierra, y `absent()` va primero.**
 
-## Trampas (aprendidas a golpes)
+## Pitfalls (aprendidas a golpes)
 
 ### Restaurar una DB por pipe remoto: verificar el conteo de tablas, no el exit code
 
@@ -155,6 +155,56 @@ Para permitir SSH: el `dst` de una regla **no puede ser FQDN** — usar tag o IP
 `vm-services` no tenía tag asignado hasta 2026-10-06, por eso `ssh-copy-id` fallaba incluso
 con `tailscale up --ssh` activo. Para asignar tag: POST a `/api/v2/device/{id}/tags`.
 La referencia completa: `references/tailscale-acl.md`.
+
+### LiteLLM lento o inestable en tailnet: medir ruta, scheduling y presión de nodo antes de tocar app config
+
+Cuando la UI de LiteLLM “demora muchísimo en cargar”, separar primero red de app y luego estabilidad del pod.
+
+**Secuencia mínima (en este orden):**
+
+```bash
+# 0) kubeconfig correcto (imac27 ya no corre k3s)
+make kubeconfig
+KUBECONFIG=$HOME/.kube/config kubectl config view --minify -o jsonpath='{.clusters[0].cluster.server}'
+
+# 1) medir desde cliente: DNS/TLS/TTFB/total
+for i in 1 2 3; do
+  curl -sS -o /dev/null --connect-timeout 10 --max-time 100 \
+    -w 'http=%{http_code} dns=%{time_namelookup} connect=%{time_connect} tls=%{time_appconnect} ttfb=%{time_starttransfer} total=%{time_total}\n' \
+    https://litellm.coyote-paridae.ts.net/ui/
+done
+
+# 2) medir dentro del clúster (sin hop cliente→tailnet)
+kubectl -n litellm run curl-debug --image=curlimages/curl:8.12.1 --restart=Never --rm -i --command -- \
+  sh -c 'for u in / /ui/ /health/liveliness; do
+    printf "%s " "$u";
+    curl -sS -o /dev/null -w "code=%{http_code} connect=%{time_connect} ttfb=%{time_starttransfer} total=%{time_total}\n" \
+      http://litellm.litellm.svc.cluster.local:4000$u;
+  done'
+
+# 3) comprobar estabilidad de scheduling y presión del nodo
+kubectl -n litellm get deploy,pod -o wide
+kubectl -n litellm get events --sort-by=.lastTimestamp | tail -40
+kubectl describe node vm-worker | grep -E 'Ready|DiskPressure|MemoryPressure|SystemOOM|NodeNotReady' -A3
+kubectl top node vm-worker
+```
+
+**Regla:** si `/ui/` responde rápido dentro del clúster pero lento/intermitente desde cliente, el cuello está en la ruta tailnet/cliente. Si además hay `Evicted`, `NodeNotReady` o `SystemOOM`, tratar primero estabilidad del nodo/pod antes de culpar al frontend.
+
+**Corolario operativo:** LiteLLM sin `resources.requests/limits` (incluido `ephemeral-storage`) y sin afinidad/nodeSelector queda a merced del scheduler; ante presión de nodo, reprograma o se evicta y la UI se vuelve intermitente.
+
+**Flujo de hardening LiteLLM:**
+1. Verifica kubeconfig activo, labels/taints, nodo de PostgreSQL/Redis, arquitectura de la imagen y presión de nodo antes de editar.
+2. Declara CPU, memoria y `ephemeral-storage` requests/limits en el workload. Si se fija una clase de nodo, declara selector y toleration en `clusters/<cluster>/apps.yaml` (no en el manifest genérico de la app), y agrega `dependsOn: infra-nodos`.
+3. Si el cambio toca `clusters/<cluster>/apps.yaml`, reconcilia primero la Kustomization raíz `flux-system`; luego avanza por dependencias (`infra-controllers` → `infra-configs`/`infra-storage` → `apps-databases` → `apps-litellm`). Una revisión raíz aplicada no significa que sus Kustomizations hijas ya estén al día.
+4. Mide 12–20 muestras externas de `/ui/` antes y después (DNS, connect, TLS, TTFB, total), resume p50/p95 e informa el tamaño de muestra. Una muestra pequeña sin picos no demuestra que una cola histórica desapareció.
+5. Verifica rollout, nodo, recursos efectivos, eventos recientes, `flux get ks`, health con certificado válido y login UI real antes de cerrar.
+
+**Redis con PVC `ReadWriteOnce`:** al reemplazar un Deployment singleton, usa `RollingUpdate` con `maxSurge: 0` y `maxUnavailable: 1` para evitar un segundo pod intentando montar el mismo volumen. `Recreate` puede ser rechazado si el objeto conserva `rollingUpdate` por merge declarativo; valida con `kubectl apply --dry-run=server -f <manifest>` antes del PR. El reinicio implica una interrupción breve y debe estar autorizado.
+
+**Recuperación de UI Admin:** sigue la documentación vigente de LiteLLM; configura `UI_USERNAME`/`UI_PASSWORD` por el canal existente de AKV → ExternalSecret, fuerza refresh con timestamp y reinicia mediante Flux. Valida el endpoint de login (en esta instalación `POST /v2/login`) con credenciales leídas en variables de shell; descarta el body y muestra solo el código HTTP. No intentes diagnosticar contraseñas imprimiendo respuestas administrativas.
+
+**No exponer tokens al inspeccionar LiteLLM:** `/user/info` puede incluir valores completos en `keys[].token`. No imprimas ni guardes el body; proyecta solo campos no secretos como alias/rol, o envía la respuesta a `/dev/null` cuando solo necesitas el status. Una filtración de herramienta requiere informar qué tipo de token y dónde apareció, sin repetir valores, y dejar su revocación/rotación para una decisión explícita si puede cortar clientes.
 
 ### La imagen de LiteLLM importa: `litellm-database` carga guardrails de DB, `litellm` solo de config.yaml
 
@@ -202,10 +252,7 @@ Si alguna vez se migra a la imagen `-database`, los guardrails se pueden mover a
   el árbol de Flux.** Ya pasó con `headlamp` (URL 404). Los HelmRepository viven
   **solo** en `infrastructure/controllers/helm-repositories.yaml` (única fuente de
   verdad). Al agregar uno: `curl -sSf -o /dev/null <url>/index.yaml` primero.
-- **NUNCA incluir `.data` en un `jsonpath` de inspección de un Secret.** Imprime
-  los valores en base64 y la redacción automática no lo cubre del todo. Usar
-  `-o name` o los **nombres** de las claves. Ya pasó una vez y obligó a rotar dos
-  credenciales.
+- **Nunca extraigas `.data` ni `.stringData` de un Secret para inspección.** `jsonpath` puede mostrar valores base64 y la redacción automática no basta. Usa `-o name` o proyecta solo los nombres de claves. La misma regla aplica a scripts y configs: no imprimas líneas crudas que puedan contener tokens; proyecta una allowlist de campos no secretos y, si solo necesitas comparar secretos, emite un booleano sin valores ni hashes.
 - **El `.gitignore` ignora `**/secrets/*.yaml` (SOPS) y `**/flux-system/gotk-*.yaml`.**
   No pongas manifiestos en texto plano bajo una carpeta `secrets/`: git los
   descarta en silencio y Flux falla con `kustomization path not found`. Usar
@@ -226,8 +273,9 @@ Si alguna vez se migra a la imagen `-database`, los guardrails se pueden mover a
   deja a sus dependientes en `dependency not ready` hasta el ciclo siguiente.
   Forzar en orden de dependencia (`apps-databases` antes que `apps-litellm`) y
   esperar; no es una regresión.
-- **No cerrar un PR por "está CLEAN/MERGEABLE"** sin ver que `main` no tenga una
+- **No cierres un PR por "está CLEAN/MERGEABLE"** sin ver que `main` no tenga una
   referencia colgante (se mergeó una doc después de que `AGENTS.md` ya la citaba).
+- **Para errores de subida en WordPress, verifica la ruta exacta antes de tocar recursos globales.** Si el nombre de archivo reporta una subcarpeta (`story_content/...`) y esa carpeta no existe bajo `uploads`, crear esa ruta con owner `www-data:www-data` y modo de grupo escribible corrige el incidente; cambiar `fsGroup`, PVC o DB no arregla una ruta inexistente.
 - **El archivo de config de un túnel puede no ser el que manda.** En `frontdoor`,
   `cloudflared` **lee** `/workspace/litellm/cloudflared/config.yml` pero aplica la
   **configuración remota** de Cloudflare — lo dice en los logs (`Updated to new
@@ -295,15 +343,7 @@ recordar SIEMPRE:
 - **`virsh setmem` en vivo cuelga el guest** (el balloon lo deja sin RAM): sigue `running` en `virsh list`
   pero sin red ni consola. Redimensionar SIEMPRE con la VM **apagada** y `--config`
   (`setvcpus/setmaxmem/setmem --config`), después `virsh start`.
-- **`vm-services` tiene dos K3s peleando.** Lanza `k3s agent` por cloud-init
-  (`/etc/systemd/system/k3s-agent-install.sh`, apunta al server por Tailscale `100.95.198.5:6443`), pero
-  un `k3s.service` **habilitado** levanta un `k3s server` local que falla en `:6444` (ocupado por el
-  agente) y **deja el kubelet del agente caído** → nodo `Ready=Unknown` con `k3s agent` vivo y Tailscale
-  OK. Síntoma: `ss -tlnp` con 6444 ocupado y **nada en 10250**; `journalctl -u k3s` con el server
-  fallando por puerto. Fix: `systemctl disable --now k3s.service` y relanzar el agente desacoplado del
-  SSH — **un `nohup` simple muere al cerrar la sesión**, usar
-  `systemd-run --unit=k3s-agent-run --property=Restart=always bash /etc/systemd/system/k3s-agent-install.sh`.
-  Es **drift fuera de Git** (cloud-init): el disable debería estar en el user-data versionado.
+- **Recuperar el agente K3s de `vm-services` exige validar el servidor antes de reiniciarlo.** Primero lee solo el endpoint del kubeconfig activo y compáralo con `server` en `/etc/rancher/k3s/config.yaml`; no ejecutes a ciegas `/etc/systemd/system/k3s-agent-install.sh`, que puede apuntar a un control-plane retirado y contener un token inline. Revisa `systemctl show` (estado/PID/reinicios), cuenta procesos `k3s-agent` y comprueba `k3s.service` antes de detener o iniciar nada: nunca dejes dos agentes ni un servidor local compitiendo. Si la config local coincide con el API activo y contiene la fuente de token requerida, la recuperación observada usa `sudo -n systemd-run --unit=k3s-agent-run --property=Restart=always --no-block "$(command -v k3s)" agent --config /etc/rancher/k3s/config.yaml`; no es una reparación persistente. Antes del reinicio inventaría las cargas con PVC Longhorn en el nodo y coordina la interrupción: un `Ready` inmediato puede ser un heartbeat viejo. Después espera lease renovada y `Ready`, confirma el driver en `CSINode` y valida el montaje real del workload; `attached/healthy` de Longhorn no certifica que el filesystem esté montado ni íntegro. Revisa logs del kernel por errores ext4/JBD2/I/O y no ejecutes `fsck`, formato o restore sin autorización y plan de datos. Todo cambio duradero al aprovisionamiento debe corregirse en su fuente versionada mediante PR.
 - **El PVC de backups puede llenarse por snapshots Longhorn, no por dumps.** `pg_dump` falla con
   `No space left on device` aunque `df` del PVC muestre 12 %: las snapshots del `RecurringJob` consumen
   el volumen. Revisar la retención de snapshots, no solo los dumps.

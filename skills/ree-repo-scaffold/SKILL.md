@@ -1,204 +1,89 @@
 ---
 name: ree-repo-scaffold
-description: "Crea repo GitHub con CI/CD y apps/ K3s"
-version: 1.0.0
+category: productivity
+version: 1.1.0
+description: "Prepara repos de proyecto con desarrollo reproducible y CI."
 author: Hermes
 license: MIT
-category: productivity
-tags: [ree-repo, scaffold, github, gitops, cicd, branch-protection]
+metadata:
+  hermes:
+    tags: [ree-repo, scaffold, github, cicd, development]
 ---
 
-# ree-repo-scaffold — F3: Scaffolding del Repositorio
-
-Crea el repositorio GitHub con estructura completa de proyecto siguiendo el modelo GitOps de `reevolutiva-infra`: `apps/<proyecto>/`, `src/`, `skills/`, `integrations/`, `docs/`, `scripts/`, CI/CD con branch protection y workflow anti-push a main.
+# ree-repo-scaffold — repositorio de código y flujo de desarrollo
 
 ## When to Use
 
-- Desde `/ree-repo` orquestadora (F3), después de F2 Architect.
-- "crear repo del proyecto", "hacer scaffolding", "configurar CI/CD".
-- Trigger: el usuario quiere materializar la estructura del proyecto en GitHub.
+Cuando un proyecto necesita un repositorio de código nuevo o una base reproducible para que personas y agentes desarrollen, prueben y publiquen artefactos.
+
+## Límite de responsabilidad
+
+Este skill prepara el repositorio del proyecto: código, setup, tests, CI y, si aplica, Dockerfile/build de imagen. Los manifiestos que Flux aplica **no** viven aquí: van en `reevolutiva-infra/apps/<proyecto>/`; el registro y placement van en `reevolutiva-infra/clusters/<activo>/apps.yaml` mediante `ree-repo-deploy`. Mantén ese límite incluso si un scaffold antiguo incluye una carpeta `apps/` con YAML de Kubernetes.
 
 ## Procedure
 
-### 1. Verificar prerequisitos
+### 1. Descubrir el proyecto y los requisitos
 
-```bash
-gh auth status  # debe retornar exitoso
-```
-Si falla, ejecutar skill `github-auth` antes de continuar.
+Leer el intake, la arquitectura acordada y las convenciones de la organización. Determinar lenguaje, toolchain, comandos de test/lint, si requiere una imagen, y qué secretos consume. No generar un monorepo de carpetas genéricas si el proyecto no las necesita.
 
-### 2. Crear repo en GitHub
+Comprobar `gh auth status` antes de usar GitHub. Si el repo ya existe, inspeccionar su estructura y estado antes de modificarlo.
 
-```bash
-gh repo create reevolutiva/<repo> --private --clone
-cd <repo>
-```
+### 2. Crear la base de desarrollo
 
-### 3. Configurar branch protection ANTES del primer push
+Crear o completar el repositorio bajo la organización indicada. Incluir solo lo que aplique:
 
-```bash
-gh api /repos/reevolutiva/<repo>/branches/main/protection \
-  -X PUT \
-  -F required_pull_request_reviews=null \
-  -F allow_force_pushes=false \
-  -F allow_deletions=false \
-  -F block_creations=false
-```
+- código fuente y pruebas;
+- `README.md` y `AGENTS.md` con setup, convenciones, pruebas y flujo de PR;
+- `.github/workflows/` con CI de lint/test/typecheck adecuado al stack;
+- configuración reproducible (`.devcontainer/`, `Dockerfile` de desarrollo o equivalente si corresponde);
+- scripts de desarrollo, build y migración cuando sean necesarios;
+- `.env.example` con nombres/comentarios solamente, nunca valores;
+- `Dockerfile` de runtime cuando el servicio se despliegue como contenedor.
 
-### 4. Generar workflow block-push-main.yml
+No fuerces `package.json`, Node, Docker Compose ni estructura de agentes a proyectos de otro stack. No incluir manifiestos Kubernetes ni secretos de producción en el repo de aplicación.
 
-Crear `.github/workflows/block-push-main.yml`:
+### 3. Definir CI y artefactos
 
-```yaml
-name: Block Push to Main
-on:
-  push:
-    branches: [main]
-jobs:
-  block:
-    runs-on: ubuntu-latest
-    if: ${{ !startsWith(github.event.head_commit.message, 'Merge pull request') }}
-    steps:
-      - name: Reject direct push
-        run: |
-          echo "❌ Push directo a main no permitido."
-          echo "   Todo cambio debe entrar por PR desde una rama feat/ o fix/."
-          echo "   Ver AGENTS.md → Flujo de trabajo."
-          exit 1
-```
+La CI debe ejecutar los checks reales del proyecto en push de rama y PR a `main`. Si el proyecto genera una imagen, construirla desde una revisión identificable y publicarla en el registry que autorice el flujo GitOps vigente. Fijar tags versionados/digest para despliegues; no promover `latest` como referencia estable. Verificar multi-arch si el servicio puede correr tanto en arm64 como amd64 y probar pull desde el nodo destino antes de dar por listo el landing.
 
-El `if` evita que el workflow falle cuando el push es un merge de PR.
+No hardcodear GHCR ni el registry interno sin revisar las instrucciones operativas actuales: la plataforma prioriza el registry interno, pero capacidad de pull y credenciales deben comprobarse por clase/nodo.
 
-### 5. Generar CI/CD workflows
+### 4. Configurar ramas e integración
 
-`.github/workflows/ci.yml`:
-- Triggers: push a cualquier rama, PR a main
-- Jobs: lint, typecheck, test
-- Matrix de Node.js si aplica
+Usar el flujo de ramas y PR definido por la organización. Configurar protección de `main` y controles anti-push directo si forman parte del estándar vigente, antes de depender de ellos. Crear el commit inicial y abrir PR cuando la política del repo así lo requiere; no eludir las protecciones para ahorrar pasos.
 
-`.github/workflows/deploy.yml`:
-- Trigger: push a main (solo vía PR merge)
-- Jobs: build Docker → push a ghcr.io/reevolutiva
+### 5. Habilitar el workspace de desarrollo
 
-### 6. Crear estructura de directorios
+Si el alcance incluye vm-services o Paperclip, clonar el proyecto en un checkout propio bajo `/data/workspace/projects/<repo>` y verificar el setup desde un entorno limpio. Si Paperclip se usará, registrar el repo/workspace y dejar que gestione worktrees por issue. Si el proyecto se desarrollará en otro entorno, documentar allí los pasos de checkout y setup; no aprovisionar vm-services por defecto. Nunca compartir un `.git` escribible entre agentes o entre agente y desarrollador; usar clones/worktrees aislados e integrar por PR.
 
-```
-<repo>/
-├── .github/workflows/   (ci.yml, deploy.yml, block-push-main.yml)
-├── src/
-│   ├── agents/
-│   ├── pipeline/
-│   ├── intake/
-│   ├── api/
-│   └── providers/
-├── apps/<proyecto>/
-│   ├── kustomization.yaml
-│   ├── deployment.yaml     # o helmrelease.yaml
-│   ├── service.yaml
-│   ├── ingress.yaml        # ingressClassName: tailscale
-│   └── externalsecret.yaml # secretStoreRef: azure-keyvault
-├── skills/
-├── integrations/
-│   ├── hermes/
-│   └── paperclip/
-├── config/
-├── docs/architecture/
-├── scripts/
-├── tests/
-├── .env.example
-├── .gitignore
-├── .sops.yaml
-├── package.json
-├── tsconfig.json
-├── docker-compose.yml
-├── Dockerfile
-├── AGENTS.md
-└── README.md
-```
+### 6. Entregar a GitOps
 
-### 7. Generar apps/<proyecto>/kustomization.yaml
-
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
-  - externalsecret.yaml
-```
-
-### 8. Generar apps/<proyecto>/deployment.yaml
-
-Con recursos, readinessProbe, nodeSelector (si aplica). La imagen debe referenciar `ghcr.io/reevolutiva/<proyecto>`.
-
-### 9. Generar apps/<proyecto>/service.yaml
-
-Con puerto del contenedor.
-
-### 10. Generar apps/<proyecto>/ingress.yaml
-
-```yaml
-spec:
-  ingressClassName: tailscale
-```
-
-### 11. Generar apps/<proyecto>/externalsecret.yaml
-
-```yaml
-spec:
-  secretStoreRef:
-    name: azure-keyvault
-    kind: ClusterSecretStore
-```
-
-### 12. Generar package.json
-
-Con dependencias inferidas de Fase 6 (`06-tech/arquitectura-tecnica.md`).
-
-### 13. Generar .env.example
-
-Solo nombres de variables con comentarios descriptivos. Nunca valores reales.
-
-### 14. Gate F3
-
-Jev Score: `incompleto`, `minimo`, `completo`, `sobreconstruido`.
-Debe ser ≥ `completo`.
-
-### 15. Commit inicial y push
-
-```bash
-git add -A
-git commit -m "chore: scaffold inicial del proyecto"
-git push origin main
-```
+Cuando el código y la imagen estén listos, pasar a `ree-repo-deploy` para crear los recursos de plataforma y registrar la Kustomization en `reevolutiva-infra`. Coordinar las revisiones: el manifiesto GitOps debe apuntar a una imagen que ya existe y que el nodo destino puede descargar. El alta en Paperclip es independiente del despliegue Flux.
 
 ## Jev Integration Points
 
-| Punto | Primitivo | Pregunta |
+| Punto | Primitivo | Pregunta / niveles |
 |---|---|---|
-| Cobertura CI/CD | noul | "Do the CI workflows cover linting, type checking, testing, and deployment?" |
-| Conformidad GitOps | noul | "Does the scaffold follow the reevolutiva-infra GitOps model?" |
-| Branch protection | noul | "Does the repo have branch protection AND block-push-main workflow?" |
-| Gate F3 | score | Levels: `incompleto`, `minimo`, `completo`, `sobreconstruido`. State: lista de archivos generados. |
+| Setup reproducible | `noul` | ¿Un checkout limpio instala dependencias y ejecuta los comandos documentados? |
+| CI | `noul` | ¿La CI ejecuta los checks reales del stack y pasa en PR? |
+| Gate F3 | `score` | `incompleto`, `minimo`, `completo`, `sobreconstruido` |
+
+State: stack elegido, comandos de setup/test y resultados de CI/imagen. Sin TYPESAFE_API_KEY, usar `[hermes-judgment]` y registrar confianza.
 
 ## Pitfalls
 
-- **Branch protection antes del primer push**: aplicar `gh api` ANTES de `git push`. Si se pushea antes, main queda desprotegido.
-- **block-push-main.yml con `if` correcto**: el `if: ${{ !startsWith(github.event.head_commit.message, 'Merge pull request') }}` es OBLIGATORIO. Sin él, los merges de PR también fallan.
-- **Imagen en deployment.yaml**: usar `ghcr.io/reevolutiva/<proyecto>:latest` como placeholder hasta que CI genere la imagen real.
-- **.env.example sin valores**: nunca incluir credenciales reales. Solo nombres de variables.
-- **GitHub auth previo**: si `gh auth status` falla, ejecutar `github-auth` primero.
-- **apps/ es source of truth**: los manifiestos viven en `apps/<proyecto>/` del repo del proyecto, no en `infrastructure/kubernetes/`.
+- **No pongas YAML de despliegue K3s dentro del repo de código como fuente de verdad:** Flux sincroniza el repo central `reevolutiva-infra`, no un directorio local ni automáticamente el repo de aplicación.
+- **No supongas un stack común:** adaptar estructura y CI al manifiesto real evita scaffolds pesados que no se pueden ejecutar.
+- **No hornees secretos en `.env.example`, imagen ni workflow:** variables de entorno nombran configuración, pero valores de runtime van al mecanismo aprobado de secretos.
+- **No uses tags mutables como pin de producción:** un tag mutable impide determinar qué versión está ejecutándose y debilita rollback.
+- **No asumas que la imagen funciona en cualquier nodo:** arm64/amd64 y acceso al registry se verifican en el destino efectivo.
+- **Separa workspace y despliegue:** Paperclip o VS Code habilita desarrollo; solo el PR GitOps habilita Flux.
 
 ## Verification
 
-1. `gh api /repos/reevolutiva/<repo>/branches/main/protection` → `allow_force_pushes: false`, `allow_deletions: false`.
-2. `.github/workflows/block-push-main.yml` existe con `if: ${{ !startsWith(...) }}`.
-3. Estructura de directorios completa (src/, apps/<proyecto>/, integrations/, etc.).
-4. `apps/<proyecto>/kustomization.yaml` referencia deployment, service, ingress, externalsecret.
-5. `apps/<proyecto>/ingress.yaml` tiene `ingressClassName: tailscale`.
-6. `apps/<proyecto>/externalsecret.yaml` referencia `ClusterSecretStore: azure-keyvault`.
-7. CI/CD workflows existen (ci.yml + deploy.yml).
-8. Commit inicial en main existe (creado vía PR o como commit inicial único).
-9. `skills_list` muestra `ree-repo-scaffold` en categoría `productivity`.
+- Un checkout limpio puede instalar dependencias y ejecutar los comandos documentados.
+- CI corre los tests/lint/typecheck apropiados y pasa en PR.
+- `.env.example` contiene nombres, no secretos.
+- Si hay imagen, el tag/digest, arquitecturas y registry están documentados y el pull se probó desde el nodo destino.
+- README/AGENTS explican cómo abrir workspace, testear, construir y pedir un despliegue.
+- El despliegue se entrega a `ree-repo-deploy`; no se declara terminado por el solo hecho de que el repo exista.
