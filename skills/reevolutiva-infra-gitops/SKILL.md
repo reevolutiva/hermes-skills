@@ -56,7 +56,9 @@ Los hosts legacy cargan mucho (load >40 por agentes): los comandos tardan. Subir
 
 1. Confirma el repo, kubecontext, host y manifiestos actuales antes de actuar; no uses topología histórica como estado vivo.
 2. Selecciona el runbook de esta skill que corresponda al cambio o incidente y sigue sus gates específicos.
-3. Mantén el estado duradero en Git mediante PR y Flux; verifica el runtime y una prueba funcional antes de cerrar.
+3. Para incidentes de WordPress con error de subida de archivos (`Could not create directory structure` o similares), diagnostica primero dentro del pod: valida existencia de la ruta completa bajo `web/app/uploads`, dueño/grupo y bit de escritura del directorio padre, y prueba una escritura real en la ruta objetivo.
+4. Si el incidente exige recuperación inmediata y el fix no puede esperar el ciclo GitOps, aplica un hotfix mínimo en runtime (crear ruta faltante y permisos exactos), verifica que la escritura funciona, y en el mismo flujo abre el cambio declarativo equivalente en Git para evitar drift.
+5. Mantén el estado duradero en Git mediante PR y Flux; verifica el runtime y una prueba funcional antes de cerrar.
 
 ## Verification — gates obligatorios antes de declarar algo terminado
 
@@ -271,8 +273,9 @@ Si alguna vez se migra a la imagen `-database`, los guardrails se pueden mover a
   deja a sus dependientes en `dependency not ready` hasta el ciclo siguiente.
   Forzar en orden de dependencia (`apps-databases` antes que `apps-litellm`) y
   esperar; no es una regresión.
-- **No cerrar un PR por "está CLEAN/MERGEABLE"** sin ver que `main` no tenga una
+- **No cierres un PR por "está CLEAN/MERGEABLE"** sin ver que `main` no tenga una
   referencia colgante (se mergeó una doc después de que `AGENTS.md` ya la citaba).
+- **Para errores de subida en WordPress, verifica la ruta exacta antes de tocar recursos globales.** Si el nombre de archivo reporta una subcarpeta (`story_content/...`) y esa carpeta no existe bajo `uploads`, crear esa ruta con owner `www-data:www-data` y modo de grupo escribible corrige el incidente; cambiar `fsGroup`, PVC o DB no arregla una ruta inexistente.
 - **El archivo de config de un túnel puede no ser el que manda.** En `frontdoor`,
   `cloudflared` **lee** `/workspace/litellm/cloudflared/config.yml` pero aplica la
   **configuración remota** de Cloudflare — lo dice en los logs (`Updated to new
