@@ -48,7 +48,7 @@ jobs:
 
             # 1. Name: lowercase, hyphens only, max 64 chars
             echo "- **name check**: $skill_name" >> "$GITHUB_STEP_SUMMARY"
-            if ! echo "$skill_name" | grep -qE '^[a-z0-9][a-z0-9-]{0,62}[a-z0-9]$|^[a-z0-9]$'; then
+            if [[ ! "$skill_name" =~ ^[a-z0-9]([a-z0-9-]{0,62}[a-z0-9])?$ ]]; then
               echo "  - ❌ name '$skill_name': must be lowercase, hyphens, alphanumeric, 2-64 chars" >> "$GITHUB_STEP_SUMMARY"
               echo "::error file=$skill_file,title=Name format::Skill name '$skill_name' must be lowercase with hyphens (2-64 chars)"
               failed=true
@@ -67,8 +67,8 @@ jobs:
               echo "  - ✅ YAML frontmatter present" >> "$GITHUB_STEP_SUMMARY"
 
               # 2a. description exists and ≤ 60 chars
-              description=$(echo "$frontmatter" | grep -E '^description:' | head -1 | sed 's/^description:\s*//' | sed 's/^"//;s/"$//')
-              desc_chars=$(echo -n "$description" | wc -c | tr -d ' ')
+              description=$(awk '/^description:/ { sub(/^description:[[:space:]]*/, ""); sub(/^"/, ""); sub(/"$/, ""); print; exit }' <<< "$frontmatter")
+              desc_chars=$(printf '%s' "$description" | wc -c | tr -d ' ')
               if [ "$desc_chars" -gt 60 ]; then
                 echo "  - ❌ description is $desc_chars chars (max 60)" >> "$GITHUB_STEP_SUMMARY"
                 echo "::error file=$skill_file,title=Description too long::$desc_chars chars (max 60)"
@@ -78,7 +78,7 @@ jobs:
               fi
 
               # 2b. author is Hermes
-              author=$(echo "$frontmatter" | grep -E '^author:' | head -1 | awk '{print $2}')
+              author=$(awk '/^author:/ { print $2; exit }' <<< "$frontmatter")
               if [ "$author" != "Hermes" ]; then
                 echo "  - ❌ author is '$author' (must be 'Hermes')" >> "$GITHUB_STEP_SUMMARY"
                 echo "::error file=$skill_file,title=Author check::author must be 'Hermes', got '$author'"
@@ -88,7 +88,7 @@ jobs:
               fi
 
               # 2c. version is present
-              if ! echo "$frontmatter" | grep -q '^version:'; then
+              if ! awk '$1 == "version:" { found=1 } END { exit !found }' <<< "$frontmatter"; then
                 echo "  - ❌ version field missing in frontmatter" >> "$GITHUB_STEP_SUMMARY"
                 echo "::error file=$skill_file,title=Missing version::version field is required in frontmatter"
                 failed=true
@@ -100,7 +100,7 @@ jobs:
             # 3. Required sections present (in body, after frontmatter)
             body=$(sed '1{/^---$/!q};/^---$/,/^---$/d' "$skill_file" | sed '1{/^---$/d}')
             for section in "When to Use" "Procedure" "Pitfalls" "Verification"; do
-              if echo "$body" | grep -qi "## $section"; then
+              if grep -qiF "## $section" <<< "$body"; then
                 echo "  - ✅ section '$section' found" >> "$GITHUB_STEP_SUMMARY"
               else
                 echo "  - ❌ section '$section' not found" >> "$GITHUB_STEP_SUMMARY"
