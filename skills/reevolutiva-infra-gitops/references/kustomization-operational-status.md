@@ -58,6 +58,40 @@ Una Kustomization `Ready=True` con `wait: false` solo confirma que Flux aplicó 
 
 7. Actualiza el issue que sigue la desviación con intención Git, estado actual de cada capa, evidencia funcional y bloqueos. No cierres un issue amplio solo porque el PR de declaración de estado se mergeó; deja explícitas las tareas de recuperación y los criterios de aceptación pendientes.
 
+## Dar de baja una carga o un plano entero
+
+Suspender la Kustomization es el **primer** paso, no el último. Un plano se da de baja con seis
+barridos; si falta uno, queda una referencia viva que después alguien lee como drift.
+
+1. **Decisión y ruta de reactivación, primero.** Quién lo pide, por qué, y qué haría falta para
+   levantarlo de nuevo. Si no está justificado/validado/comunicado, va a referencia — no se borra.
+2. **`spec.suspend: true` con motivo en el overlay** (`clusters/<cluster>/apps.yaml`), no solo en
+   live: un `suspend=true` que solo está en live es drift. Escribe en el comentario por qué y cómo
+   revertir, y abre el PR.
+3. **Barrido de residuos live** (los cinco comandos, todos con salida vacía como criterio):
+
+   ```bash
+   kubectl get all,ingress,svc,pvc -n <ns>                          # recursos del namespace
+   kubectl get pv,pvc -A | grep -i <nombre>                        # volúmenes
+   kubectl get volumes.longhorn.io -n flux-system | grep -i <nombre>  # CRD de Longhorn
+   kubectl get externalsecret -A | grep -i <nombre>                # secretos que quedan
+   tailscale status | grep -i <nombre>                             # dispositivo del tailnet
+   ```
+
+   **El namespace se vuelve a crear.** Si está declarado en `infrastructure/configs/namespaces.yaml`,
+   `infra-configs` lo recrea aunque `apps-<plano>` esté suspendido: un `kubectl delete namespace`
+   parece funcionar y a la hora está de vuelta, vacío. Decidí explícitamente: quitarlo de la
+   declaración (baja total) **o** dejarlo vacío y decirlo en el comentario, para que un namespace
+   vacío no se lea como drift.
+4. **Barrido de documentación.** Las filas del servicio en `docs/auditoria-servicios.md` y cualquier
+   inventario o README que lo liste como activo. Marcalas como archivadas con la fecha y la ruta de
+   reactivación; no las borres.
+5. **Preservar la referencia fuera del clúster.** Los manifiestos de `apps/<plano>/` quedan como
+   plantilla y los repos de diseño/estrategia se conservan donde están. "Archivar" es retirar del
+   clúster activo, no destruir el material.
+6. **Verificar el efecto, no el PR.** Tras el merge: `flux get ks -A` con la Kustomization
+   `SUSPENDED=True`, el namespace vacío, y el hostname sin resolver (NXDOMAIN) si tenía ruta.
+
 ## Pitfalls
 
 - No concluyas “operativo” desde `Ready=True` si la Kustomization usa `wait: false`; verifica Deployment/Pod y una prueba real.
