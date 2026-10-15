@@ -458,6 +458,9 @@ resultado instantáneo.
   (`wp_blogs`, `wp_site`, `wp_sitemeta`, `wp_signups`, `wp_registration_log`), lo que
   degrada en redirects a `wp-signup.php?new=...`. El gate de aceptación del restore en
   multisite debe incluir presencia de tablas globales de red, no solo conteo total.
+- **Antes de depurar un upload de plugin, instrumenta el endpoint que falla y captura el path exacto.** En plugins que suben por REST/chunks (p. ej. Tin Canny), el mensaje de UI puede ocultar el destino real (`uploads/uncanny-snc/<slug>` vs `uploads/story_content`); sin ese `target` de runtime, corregir permisos por heurística pierde rondas.
+- **Distingue “chunk size” de “límite real de upload” al diagnosticar errores de subida.** Un frontend puede mostrar 2 MB por bloque y el servidor aceptar 1 GB (`upload_max_filesize`/`post_max_size`); valida límites con `php -i` en el contenedor antes de culpar al tamaño total.
+- **En WordPress multisite con plugins de autoría, asegura permisos de escritura en la raíz dinámica del plugin (`uploads/uncanny-snc`) además de subcarpetas conocidas.** Si la raíz está `2755` sin write de grupo para `www-data`, `wp_mkdir_p()` falla al crear slugs nuevos y devuelve “Could not create directory structure” aunque `story_content` exista en otras rutas.
 - **Después de restaurar DB, valida `template`/`stylesheet` antes de declarar paridad visual.** El dump puede dejar activo un theme distinto al esperado (por ejemplo fallback a tema por defecto) y el sitio seguirá "arriba" pero con identidad visual incorrecta.
 
 ## Verification

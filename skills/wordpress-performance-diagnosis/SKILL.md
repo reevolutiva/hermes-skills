@@ -132,6 +132,14 @@ Medir la misma URL por Cloudflare, contra el ingress y contra el pod, y comparar
 `%{time_starttransfer}` de la **última** respuesta del redirect. Comando listo en
 `references/probe-recetas.md`.
 
+**Falta un punto de observación: el navegador del usuario.** Con las tres mediciones verdes y el
+usuario diciendo que sigue lento, el peldaño que queda es el camino cliente↔borde. Un HAR de ese
+cliente lo cierra sin tocar nada: el header `date` de la respuesta comparado con
+`startedDateTime + … + wait` demuestra si el retraso es **posterior al servidor**. No le pidas
+marcar «Disable cache» (contamina la captura: después no se puede concluir nada sobre caché).
+Receta completa: skill `reevolutiva-infra-gitops` →
+`references/http-performance-tailnet.md` → *Triage del HAR del cliente*.
+
 ### 5. Auditoría de caché — las tres capas se pierden en silencio
 
 ```bash
@@ -257,6 +265,32 @@ kubectl -n <ns> get events --sort-by=.lastTimestamp | tail -15
 - **El estado activo/archivado de una app lo manda el manifiesto del clúster**, no el `README`
   de la carpeta de la app ni los docs de exposición: verificado que divergen. Ante duda,
   `kubectl -n <ns-flux> get kustomizations` y el `suspend` del manifiesto.
+- **El `fsGroup` del pod NO es el usuario de PHP en OpenLiteSpeed.** Es la trampa más cara:
+  un plugin falla con «Could not create directory structure» (o cualquier `wp_mkdir_p`), se
+  revisan permisos del árbol, se crean los directorios y **sigue fallando**. La causa real:
+  la imagen base arranca OLS con `user nobody` / `group nogroup`, y OLS **reemplaza los grupos
+  suplementarios** al bajar privilegios, así que `lsphp` queda en `65534:65534` con un único
+  grupo y el `fsGroup` nunca le llega. Diagnóstico en 3 comandos, dentro del pod:
+  ```bash
+  grep -E '^\s*(user|group)\s' /usr/local/lsws/conf/httpd_config.conf   # quién dice la config
+  for p in $(pgrep -x lsphp); do awk '/^Uid:|^Groups:/' /proc/$p/status; done  # quién es de verdad
+  setpriv --reuid=33 --regid=33 --clear-groups sh -c 'touch <dir>/.t && rm <dir>/.t'  # prueba
+  ```
+  Y el arreglo es el usuario, no el permiso: `sed` de `user`/`group` a `www-data` en
+  `httpd_config.conf` (en el `command` del contenedor y horneado en el Dockerfile), más
+  `rm -f /tmp/lshttpd/lsphp.sock*` antes del arranque — los sockets heredados de otro usuario
+  dejan el master sin poder conectar con los workers y el sitio responde **503** con
+  `Connection error: Permission denied` en `error.log`.
+- **Los `kubectl exec` corren como root y dan falsos positivos de escritura.** Un `mkdir`/`touch`
+  exitoso por `exec` no dice nada sobre PHP: hay que probar con el uid real del worker
+  (`setpriv --reuid=<uid> --regid=<gid> --clear-groups`) o replicando la función de WP dentro
+  del intérprete real (`lsphp -r '...'`). Medir con el usuario equivocado fue lo que sostuvo la
+  hipótesis falsa («es el directorio») durante varias rondas.
+- **Un directorio que funciona no prueba que los permisos estén bien.** Un árbol histórico en
+  `0777` funciona con *cualquier* usuario y esconde el defecto: los directorios nuevos creados
+  en `2775` con otro dueño fallan, y la diferencia entre «funciona» y «no funciona» parece
+  aleatoria. Cuando el patrón es «unos sí y otros no», comparar el modo de los que funcionan
+  (`find <dir> -maxdepth 1 -printf '%m %u:%g %f\n' | sort | uniq -c`) antes de tocar nada.
 - **Nunca imprimir credenciales al sondear la base.** El pod ya tiene `DB_HOST`/`DB_USER`/
   `DB_PASSWORD` en su entorno: usar PDO desde ahí, nunca `-p<password>` en la línea de
   comandos ni leer el `.data` de un Secret. Receta en `references/probe-recetas.md`.
