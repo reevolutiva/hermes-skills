@@ -24,6 +24,10 @@
       ]
     },
     {
+      "title": "Hermes & Paperclip",
+      "skills": ["ree-hermes-paperclip-method"]
+    },
+    {
       "title": "Infrastructure & GitOps",
       "skills": [
         "reevolutiva-infra-gitops",
