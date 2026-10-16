@@ -102,3 +102,12 @@ hermes skills update
 - Toda skill orquestada incluye sección `## Jev Integration Points`
 - Usar `TYPESAFE_API_KEY` cuando esté disponible; fallback con razonamiento Hermes si no
 - **Nunca push directo a `main`** — solo PR mergeados. El workflow `block-push-main.yml` rechaza cualquier push que no sea un merge de PR (commit message empieza con "Merge pull request" o contiene "(#N)" de squash merge).
+
+## Estado del proyecto
+
+**Fase activa:** consolidación del conocimiento operativo y diseño del método Hermes→Paperclip.
+
+- [Estado de avance 2026-10-16](docs/estado-avance-2026-10-16.md) — inventario de skills, divergencias, hallazgos de curator y plan de consolidación.
+- [Planificación del siguiente slice](docs/siguiente-slice-hermes-paperclip.md) — diseño e implementación del flujo Hermes intake → Paperclip ejecución con piloto end-to-end.
+
+Los artefactos de investigación están en `~/.hermes/cache/scratch/agent-skill-research/`; los volcados de sesión no se versionan.
