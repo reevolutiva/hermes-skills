@@ -60,6 +60,16 @@ README.md                            # Documentación general
 - **Inventario atómico** — toda skill debe aparecer en AGENTS.md, README.md y skills.sh.json en el mismo PR; validar con `python3 scripts/validate-skills-catalog.py`
 - **Usar `TYPESAFE_API_KEY`** cuando esté disponible; fallback `[hermes-judgment]` si no
 
+## Estado y consolidación
+
+- Fase activa: consolidación del conocimiento operativo y diseño del flujo Hermes intake → Paperclip ejecución → verificación → transferencia.
+- Mantener el estado y los gates del trabajo en [docs/estado-avance-2026-10-16.md](docs/estado-avance-2026-10-16.md).
+- Ejecutar el siguiente slice según [docs/siguiente-slice-hermes-paperclip.md](docs/siguiente-slice-hermes-paperclip.md), con Goals, Steps y Validations explícitos.
+- No copiar al tap volcados de sesión, contenido de `MEMORY.md`/`USER.md`, datos profile-only ni secretos. Mantener investigación temporal fuera del repo y revisar/redactar todo artefacto antes de versionarlo.
+- Las divergencias y skills aprendidas requieren adjudicación explícita; nunca reemplazar contenido canónico mediante merge automático sin comparación y evidencia.
+- La validación de inventario es `python3 scripts/validate-skills-catalog.py`; ejecutar antes del commit y en CI si cambia el catálogo.
+- Todo avance publicado requiere rama propia, PR a `main`, checks verdes y revisión. No hacer merge ni instalar/actualizar en hosts sin autorización aplicable.
+
 ## Instalación (para usuarios)
 
 ```bash
