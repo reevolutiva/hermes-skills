@@ -1,6 +1,6 @@
 ---
 name: ree-hermes-paperclip-method
-description: "Método Hermes→Paperclip: intake→verificación→aprendizaje"
+description: "Hermes Paperclip intake, review, aprendizaje"
 version: 1.0.0
 author: Hermes
 license: MIT
