@@ -89,6 +89,105 @@ curl -sS -o /dev/null -w '%{http_code} ssl=%{ssl_verify_result}\n' \
 # síntoma es "wrong version number", estás mirando la exposición vieja.)
 ```
 
+## Limpieza de recursos efímeros y jobs históricos (GitOps)
+
+Secuencia obligatoria para limpiar basura operativa sin reintroducir drift:
+
+1. Inventario primero (solo lectura):
+   - `kubectl get jobs -A -o json` para listar jobs terminales (`Succeeded`/`Failed`) y antigüedad.
+   - `kubectl get pods -A -o json` para detectar pods huérfanos sin `ownerReferences`.
+   - Antes de borrar, confirma que el nombre del recurso no esté declarado en Git (`git grep` en el repo de infraestructura).
+2. Corrige la causa en manifiestos antes de la poda puntual:
+   - En CronJobs, declara `ttlSecondsAfterFinished` dentro de `jobTemplate.spec`.
+   - Mantén `successfulJobsHistoryLimit` y `failedJobsHistoryLimit` explícitos.
+   - Valida con `make lint`, abre PR y deja explícito que la poda runtime es backfill, no el fix principal.
+3. Poda puntual (una vez) para sacar acumulado legacy:
+   - Borra jobs terminales viejos: `kubectl delete job -n <ns> <name>`.
+   - Borra pods huérfanos terminales: `kubectl delete pod -n <ns> <name>`.
+   - No borres CronJobs ni controladores para "limpiar historial"; solo objetos terminales.
+4. Cierre y evidencia:
+   - Recuenta jobs terminales viejos y pods huérfanos para demostrar que quedaron en cero o en el umbral esperado.
+   - No declares la limpieza completa hasta que el cambio declarativo esté mergeado en `main` y Flux muestre la revisión aplicada.
+
+**Pitfall:** Nunca uses `kubectl delete` como solución principal en GitOps, porque Flux recrea todo lo que siga declarado. Primero corrige manifiestos; la poda manual solo quita deuda acumulada previa.
+
+## Repos de servicio separados de la fuente Flux
+
+Cuando un cambio parte de un repo de servicio y Flux consume otro repo:
+1. Confirma en runtime el `GitRepository` activo (`spec.url`, `spec.ref`, revisión del artifact) y la `Kustomization` correspondiente (`spec.path`, `lastAppliedRevision`); no deduzcas la fuente live por el nombre del repo ni por el README.
+2. Verifica el merge del cambio en el repo de servicio y compara su manifiesto con el path que Flux reconcilia. No supongas que mergear el repo espejo dispara un despliegue: comprueba si existe un workflow de sincronización y qué destino actualiza.
+3. Trabaja en una rama/worktree desde `origin/main` del repo GitOps activo. Porta el cambio al path reconciliado y revisa el diff completo para conservar ajustes propios del manifiesto GitOps; no cambies la fuente de Flux como atajo. Confirma que claves/credenciales sigan como referencias a env/ExternalSecrets, nunca como valores literales.
+4. Valida el build Kustomize, el lint del repo, `git diff --check` y `kubectl apply --dry-run=server -k <path>` cuando el cluster objetivo esté accesible. Abre el PR contra el `main` del repo que Flux consume y verifica su estado, archivos y checks; un PR abierto no equivale a despliegue.
+5. Después del merge, confirma que el artifact de Flux avanzó, que la Kustomization aplicó esa revisión y que el workload pasó rollout y una prueba funcional. Si el alcance solicitado es preparar el PR, déjalo abierto y reporta claramente que falta el merge para desplegar.
+
+## Almacenamiento y capacidad de un nodo: el disco de Longhorn vive en el fs raíz
+
+**`defaultDataPath` de Longhorn es `/data/workspace/longhorn`, y dentro de la VM esa ruta es el
+filesystem raíz** (solo `/data/workspace/projects` es el share virtiofs del host). Un nodo puede
+reportar "28 G de almacenamiento" y estar reportando su propio disco de sistema: así se llega a
+`disk-pressure` con las imágenes y los caches encima. Antes de hablar de capacidad: `findmnt -T` de
+cada ruta, `du -x` (sin `-x` el `du` atraviesa el share y miente) y `kubectl get nodes.longhorn.io
+<nodo> -n flux-system -o json | jq '.spec.disks'`. `defaultDataPath` **solo afecta discos nuevos**
+(los CRs de nodo los crea Longhorn en runtime, no están en Git), así que migrar es declarar el disco
+nuevo con `allowScheduling: true` y el viejo con `false` hasta que las réplicas se reconstruyan.
+Ampliar la VM es un LV del array del host adjuntado como `/dev/vdb` (hot-plug) — **el `mkfs` lo
+ejecuta un humano: es comando bloqueado para el agente**. Detalle completo de discos, migración de
+volúmenes y triaje de "el raíz se llena":
+`references/almacenamiento-nodos.md`.
+
+### Longhorn Node CRs + Flux SSA: evita el conflicto por ownership
+
+Los `nodes.longhorn.io` los actualiza `longhorn-manager`; con Flux en server-side apply y `force: false`,
+cambiar un campo ya poseído por el manager (p. ej. `spec.disks.<id>.allowScheduling`) termina en
+`Apply failed with conflict` y deja la Kustomization en rojo.
+
+**Regla:** antes de proponer un PR sobre `nodes.longhorn.io`, prueba el manifiesto con
+`kubectl apply --server-side --dry-run=server -f <archivo>` y revisa `managedFields` del CR para ver quién
+posee cada campo.
+
+**Secuencia segura para migrar disco de Longhorn en un nodo existente:**
+1. **PR-1:** agrega el disco nuevo y mantiene los valores actuales del disco viejo.
+2. Espera `Ready` en `status.diskStatus` del disco nuevo y mide capacidad viva desde la API del manager.
+3. **PR-2:** cambia `allowScheduling: false` del disco viejo solo después de que `longhorn-manager` ya lo haya cambiado en runtime; Git declara ese estado y co-posee sin conflicto.
+4. Reporta capacidad usable: `storageAvailable - storageReserved` con el mismo origen de datos de Longhorn.
+
+**No uses `force: true` como salida rápida** para este caso. Las reglas detalladas de co-ownership, dry-run que emula a Flux y gate de aceptación: `references/declarar-crs-de-runtime-en-git.md`.
+
+### Backend fuera de K8s detrás de Service sin selector (patrón Paperclip)
+
+Cuando el dominio público entra por proxy Tailscale en K8s pero el backend real corre en una VM/proceso fuera del clúster, valida en este orden:
+
+1. `curl` público (`code`, `remote_ip`, `ssl_verify_result`) para confirmar síntoma y destino.
+2. `kubectl get svc/endpoints` del servicio expuesto para ver a qué `IP:puerto` reenvía realmente.
+3. Estado del proxy (`ts-*`): si está `Running` pero sus logs muestran `dial tcp ... connect: connection refused`, el problema suele ser backend no escuchando.
+4. En el host backend, verifica el bind real (`ss -tlnp`) y compara con el endpoint del Service.
+
+**Pitfall:** No des por bueno un endpoint porque existe. Si el proceso escucha en `127.0.0.1` pero el Service apunta a `IP_del_nodo:puerto`, el proxy responde 502 con `connection refused`: la exposición está sana y el backend está inaccesible por dirección de bind.
+
+## Traspaso entre sesiones: el handoff con gates
+
+Cuando una tarea de infraestructura no cabe en una sesión (migración de almacenamiento, cambio de
+topología, rotación de credenciales), el entregable de la sesión que la abre **es el documento de
+traspaso**, no un resumen en el chat.
+
+1. El handoff es un **archivo versionado en el repo**: `docs/handoffs/<tema>.md`, en su propia rama
+y por PR. Un traspaso que solo vive en el chat muere con la sesión.
+2. Enlázalo desde el issue de seguimiento en el mismo movimiento: el issue es el hilo de
+continuidad, el doc es el detalle.
+3. Cada fase termina en un **gate**: comando exacto + resultado esperado + quién lo ejecuta. Sin
+gate verde no se avanza, y el resultado del gate se registra en el issue.
+4. El doc lleva siempre: reglas de ejecución (qué pasos son de un humano y cuáles del agente),
+estado verificado con la fecha, alcance y fuera de alcance, gates, secuencia con responsables,
+riesgos con rollback, DoD, y un **bloque de arranque** listo para pegar en la sesión siguiente
+(repo, checkout, issue, doc, estado, reglas, accesos, próxima acción concreta).
+5. Escribe el estado como **medición, no como recuerdo**: capacidades, porcentajes y réplicas salen
+de comandos corridos en esa sesión. Un handoff con datos de memoria manda a la sesión siguiente a
+perseguir un clúster que ya cambió.
+6. Antes de tocar nada en una fase destructiva, guarda el rollback (el `spec`/JSON previo) **dentro
+del propio doc**.
+
+Plantilla lista para copiar y modificar: `templates/handoff-con-gates.md`.
+
 ## Kustomizations suspendidas, fallidas o parcialmente operativas
 
 No confundas `spec.suspend`, las condiciones Ready/Healthy, `wait` y la operación funcional de la app. Antes de cambiar una suspensión, contrasta intención de diseño, manifiesto Git y runtime real. Si el servicio debe operar, declara `spec.suspend: false` en el overlay y aplica el cambio por PR; si la pausa es intencional, declara `true` con motivo y criterio de reanudación. Antes de reanudar, revisa qué recursos/PVCs se crearán y si hay datos o una ruta legacy que preservar. Sigue `references/kustomization-operational-status.md` para la clasificación, reconciliación por dependencias y pruebas funcionales.

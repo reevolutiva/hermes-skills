@@ -1,4 +1,35 @@
-# Imágenes en GHCR: qué puede consumir el clúster y cómo se verifica
+# Imágenes propias: jerarquía de registros, publicación multi-arch y consumo heredado de GHCR
+
+> **Política vigente:** el registry interno es el destino primario; ACR es el respaldo; GHCR está
+> deprecado para publicar imágenes propias. Las secciones GHCR de este documento describen únicamente
+> el consumo y la investigación de paquetes heredados, no autorizan builds nuevos a GHCR.
+
+## Jerarquía de registros y publicación multi-arquitectura
+
+1. **Registry interno** (`registry.coyote-paridae.ts.net`) — fuente primaria. Publicar aquí las
+   imágenes propias destinadas a los despliegues GitOps.
+2. **ACR** (`reevolutivacr.azurecr.io`) — respaldo si el registry interno no está disponible. Usar el
+   secreto `acr-pull` ya declarado en los namespaces `reevolutiva` y `wordpress`.
+3. **GHCR** — deprecado como destino de publicación. Mantener las referencias existentes solo para
+   cargas heredadas hasta migrarlas mediante un cambio revisado.
+
+Toda imagen propia para nodos de arquitecturas distintas debe publicarse como índice multi-arch bajo
+una etiqueta, al menos `linux/amd64` y `linux/arm64`. No crear etiquetas por arquitectura ni asumir
+que el scheduler filtra por la arquitectura de la imagen.
+
+```bash
+docker buildx build --platform linux/amd64,linux/arm64 --provenance=false \
+  -t registry.coyote-paridae.ts.net/<app>:<tag> --push <build-context>
+
+# Verifica que la etiqueta exponga ambas arquitecturas antes de actualizar el manifiesto.
+curl -fsS -H 'Accept: application/vnd.docker.distribution.manifest.list.v2+json' \
+  http://registry.coyote-paridae.ts.net:5000/v2/<app>/manifests/<tag> \
+  | grep -E 'architecture|amd64|arm64'
+```
+
+Si el build multi-arch no puede completarse bajo emulación, construir la arquitectura faltante en un
+builder nativo autorizado y combinar los manifests con `docker buildx imagetools create`. Confirmar
+el índice publicado antes de cambiar el digest referenciado por GitOps.
 
 ## La regla que no se ve en los manifiestos
 

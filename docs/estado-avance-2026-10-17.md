@@ -23,11 +23,13 @@
 - `platforms: [linux]` (usa systemd, journalctl, /proc).
 - Validación: `python3 scripts/validate-skills-catalog.py` → OK: 16 skills.
 
-## Slice 4 — Adjudicación de divergencias del rescate (pendiente)
+## Slice 4 ✓ — Adjudicación de divergencias del rescate (infra)
 
-- Matriz de adjudicación en `docs/adjudicacion-divergencias-2026-10-17.md` (corregida tras detectar falso positivo de integración). Las 6 divergencias están siendo auditadas semánticamente; la comparación línea a línea detectó contenido exclusivo aún no integrado en la rama del PR #17.
-- Los cinco archivos nuevos del MANIFEST existen en el workspace del tap pero en rama `wip/paperclip-preexisting-20261016` con cambios sin commitear; no se verifican en `origin/main` ni en este PR.
-- Commiteado en PR #17 el documento de trabajo (commit `2a8a073`), corregido en `2e7ae0a`.
+- **Rama:** `feat/reevolutiva-infra-gitops-rescue-slice4` (desde `origin/main`) — PR pendiente de abrir.
+- **Matriz cerrada** en `docs/adjudicacion-divergencias-2026-10-17.md`: 8 bloques de infra adjudicados (6 aceptados, 1 fusionado en referencia, 1 descartado), 4 bloques fuera de scope (WordPress, Cloudflare, Tailscale) pendientes para slices separados.
+- **Bloques integrados en `SKILL.md`:** limpieza de jobs efímeros, repos de servicio, capacidad Longhorn, CRs SSA, backend Paperclip, handoff con gates.
+- **Referencia fusionada:** `references/ghcr-imagenes.md` ahora cubre jerarquía de registros + publicación multi-arch + visibilidad GHCR + higiene de objetos manuales.
+- **Validaciones:** `git diff --check` OK; `python3 scripts/validate-skills-catalog.py` OK (16 skills). Sin secretos expuestos.
 
 ## Slice 5 ✓ — related_skills de ree-hermes-paperclip-method
 
