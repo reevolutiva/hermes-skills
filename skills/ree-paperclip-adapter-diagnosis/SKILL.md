@@ -1,7 +1,7 @@
 ---
 name: ree-paperclip-adapter-diagnosis
 description: "Diagnostica adapters Paperclip (OpenCode, LiteLLM, gateway)."
-version: 0.1.0
+version: 0.2.0
 author: Hermes
 license: MIT
 platforms: [linux, macos]
@@ -13,141 +13,233 @@ metadata:
 
 # ree-paperclip-adapter-diagnosis — Diagnóstico de adapters Paperclip
 
-Usa esta skill para triage y diagnóstico de adapters y gateways que sirven a
-Paperclip: OpenCode/opencode_local, proxies LiteLLM (litellm), y el Hermes
-gateway. No realiza cambios de instancia (restart global, backups, restores)
-ni rota secretos sin autorización humana explícita.
+Diagnostica y remedia de forma segura los adapters que sirven a Paperclip:
+OpenCode (`opencode_local`), proxies LiteLLM como gateway de modelos, y Hermes
+gateway (`hermes_gateway`). No administra la instancia ni opera el board.
 
 ## When to Use
 
-- Un run queda `stalled` / `queued` sin progresar y `agent runtime-state` muestra
-  errores relacionados con `Model unavailable`, `Command not found` o `401`.
-- La UI muestra errores del adapter (model list vacío, `Command not found in PATH`).
-- El adapter reporta `gateway_auth_failed` o un token parece desalineado.
-- Quieres trazar si la causa es: adapter payload, provider/model, gateway auth,
-  o la propia instancia Paperclip.
+- Un run no progresa (`stalled`/`queued`) y `agent runtime-state` muestra
+  `Model unavailable`, `Command not found` o `401`.
+- La UI lista modelos vacíos o `Command not found in PATH`.
+- El adapter reporta `gateway_auth_failed` o un secreto parece desalineado.
+- Hay que configurar un adapter nuevo o diagnosticar su provider/model.
+- Un error ENOENT menciona `opencode.exe` bajo `dist/vendor/`.
 
 ### No usar para
 
-- Reparaciones de base de datos o restauraciones de instancia: usar
+- Operar el board (issues, PRs, steering): usar `ree-paperclip-board-ops`.
+- Reparar la instancia (UI 500, backups, join requests): usar
   `ree-paperclip-instance-admin`.
-- Cambiar secrets en producción sin gate humano y evidencia reproducible.
+- Configurar providers LiteLLM: `litellm-azure-foundry-config`.
 
 ## How to Run
 
-Siempre trabajar en modo de sólo lectura al inicio: `--json` en las lecturas.
-Evita mutaciones hasta tener evidencia (run IDs, logs, timestamps). Requisitos:
+Trabajar siempre en modo lectura primero (`--json`). No mutar secrets, config
+ni runtime sin autorización explícita y evidencia reproducible.
 
-1. Acceso CLI con `paperclipai` (v2026.1012.0 comprobado aquí) y `curl` para
-   probes HTTP cuando haga falta.
-2. Un token `API_SERVER_KEY` o board token para probes Hermes (`POST /v1/runs`).
-3. Acceso a los directorios de la instancia Paperclip donde se guardan run-logs
-   (ej. `~/.paperclip/instances/default/data/run-logs/...`) cuando se diagnostica
-   localmente.
-4. No copies valores de secrets ni los pegues en ficheros versionados.
+Requisitos:
+1. `paperclipai` v2026.1012.0+ y acceso de lectura a `~/.paperclip/`.
+2. Para diagnóstico Hermes gateway: `API_SERVER_KEY` para probes autenticados
+   de solo lectura (`GET /v1/runs/<id>`). No crear runs como parte del
+   diagnóstico.
+3. Para OpenCode: acceso al host donde corre `opencode` o su daemon.
+4. No copiar valores de secrets ni pegarlos en archivos versionados.
 
 ## Quick Reference
 
-| Necesidad | Comandos | Evidencia mínima |
-|---|---:|---|
-| Confirmar causa básica | `agent runtime-state`, `agent configuration`, `issue active-run`, `issue runs` | lastRunId, lastRunStatus, lastError, adapterConfig.model |
-| Gateway auth probe | `curl POST /v1/runs` con API key de prueba | 401 vs payload error (400) |
-| Secrets uso/rotación | `paperclipai secrets usage <secretId>`, `secrets rotate <secretId>` | referencia de secretId en agent config revisions |
-| Native ENOENT triage | inspeccionar `dist/vendor/.../opencode.exe`, `paperclipai --version` | vendor path existe o no |
-| Adapter config history | `agent config-revisions <agentId>` | revision con afterConfig → adapterConfig.secretId |
+| Síntoma | Lecturas | Evidencia mínima |
+|---|---|---|
+| Error no clasificado | `agent runtime-state`, `agent configuration`, `issue active-run` | lastRunId, lastRunStatus, lastError, adapterConfig.model |
+| ENOENT opencode.exe | `paperclipai --version`, inspeccionar `dist/vendor/.../opencode.exe` | vendor path existe o no; código que resuelve la ruta |
+| 401 / auth | `agent config-revisions`, `secrets usage`, `agent configuration` | secretId en config-revision y usage |
+| Run Hermes sin progreso | `agent runtime-state`, run-logs NDJSON, `session_admissions` | hermesRunId, admission rows, model en sessions |
+| Model unavailable | `opencode models`, `opencode.json`, `PAPERCLIP_OPENCODE_PROVIDERS` | provider block shape, model en catálogo, cache freshness |
 
-Las referencias técnicas detalladas están en `references/adapter-config.md` y
+Las referencias técnicas están en `references/adapter-config.md` y
 `references/gateway-run-diagnostics.md`.
 
 ## Procedure
 
-### 1. Triage inicial: clasificar la causa (5 pasos)
+### P1 — Triage inicial: clasificar la causa (5 pasos)
 
-1. `paperclipai agent runtime-state <agentId> --json`: anotar `lastRunId`,
-   `lastRunStatus`, `lastError`, `sessionId` y `updatedAt`.
-2. `paperclipai issue active-run <issueId> --json` y `paperclipai issue runs <issueId> --json`:
-   confirmar si la issue tiene run asociado y su historial.
-3. `paperclipai agent configuration <agentId> --json` y `paperclipai agent config-revisions <agentId>`:
-   buscar `adapterConfig.model`, `adapterConfig.apiBaseUrl`, y `afterConfig.adapterConfig.apiKey.secretId`.
-4. `paperclipai secrets usage <secretId> --json` (si hay secretId) para ver referencias.
-5. Clasificar: adapter payload (missing model/command), provider/model (Model unavailable),
-   auth (401), host path/ENOENT (opencode.exe) o instancia (UI 500 pero API OK).
+1. `paperclipai agent runtime-state <agentId> --json`: registrar lastRunId,
+   lastRunStatus, lastError, sessionId, updatedAt.
+2. `paperclipai issue active-run <issueId> --json` y `paperclipai issue runs
+   <issueId> --json`.
+3. `paperclipai agent configuration <agentId> --json` y `paperclipai agent
+   config-revisions <agentId>`: adapterConfig.model, apiBaseUrl, referencia de
+   secret.
+4. `paperclipai secrets usage <secretId> --json` si existe secretId.
+5. Clasificar: adapter payload, provider/model, auth, host path/ENOENT, o
+   instancia (derivar a Slice 3).
 
-Salida: clasificación provisional y lista de IDs (agentId, runId, secretId, timestamps).
+Salida: clasificación provisional con IDs (agentId, runId, secretId) y
+timestamps; sin mutaciones.
 
-### 2. Native runner ENOENT triage (opencode.exe) — cuando aparece ENOENT
+### P2 — Configurar OpenCode adapter para Paperclip
 
-1. Confirma la ruta que falla en el error (`dist/vendor/.../opencode-ai/bin/opencode.exe`).
-2. `paperclipai --version` y localizar ruta de install: `~/.paperclip/cli/current` o `~/.paperclip/cli/installs/npm/<ver>/node_modules/@paperclipai/`.
-3. Verifica si el vendor path existe en la instalación activa. Si falta, crear puente:
-   - Crear un script/symlink en un lugar persistente que apunte al binario opencode disponible,
-     y documentarlo (no lo apliques en producción sin aprobación).
-4. Alternativa segura: automatizar el puente en un script invoked pre-start (documentar).
-5. Re-ejecutar el run de prueba o invocar `agent heartbeat:invoke <agentId>` en modo de comprobación.
+1. Inspeccionar `paperclipai --version`, `~/.paperclip/cli/current` y el
+   paquete `@paperclipai/adapter-opencode-local` instalado.
+2. Provider en `~/.config/opencode/opencode.json` bajo la clave `provider`.
+   Credencial en el `.env` que consume OpenCode o en el entorno del run.
+3. Si Paperclip inyecta providers: `PAPERCLIP_OPENCODE_PROVIDERS` (JSON con
+   forma `provider` de OpenCode) en el entorno del servidor Paperclip.
+   `{env:VAR}` se resuelve del entorno del run o del proceso servidor.
+4. `adapterConfig.model` debe ser `provider/model`. Con IDs anidados
+   (`litellm/azure_ai/gpt-6-luna`), solo el primer segmento es el provider.
+5. `adapterConfig.command` (default `opencode`) es lo que usa test-environment;
+   el execute path también atiende `PAPERCLIP_OPENCODE_COMMAND`. Un run
+   correcto no prueba que el test comparta el mismo PATH.
+6. `PAPERCLIP_OPENCODE_SMALL_MODEL` requerido para tareas auxiliares de
+   título/resumen; si falta, OpenCode usa su default y puede fallar.
+7. Solo invocar test-environment o iniciar runs con autorización.
 
-Salida: `opencode` resolvible por la ruta esperada o evidencia que la ENOENT viene de layout vendor reconstruido.
+Salida: matriz command/provider/credential/model documentada; ningún secreto
+expuesto.
 
-### 3. Misaligned gateway secret (401) — fijado por rotation + reset
+### P3 — Native runner ENOENT triage (opencode.exe)
 
-1. Confirmar 401 → `paperclipai agent runtime-state` y revisar timestamps coincidentes.
-2. Identificar `secretId` de la config: revisar `agent config-revisions <agentId>` y buscar `afterConfig.adapterConfig.apiKey.secretId`.
-3. Validar que el `secretId` es el que usa el adapter: `paperclipai secrets usage <secretId>`.
-4. Si confirmado y tienes autorización de negocio:
-   - `paperclipai secrets rotate <secretId> --value-env <ENV_VAR_CONTAINING_KEY>` (evita poner el valor en la shell y no lo guardes en ficheros)
-   - `paperclipai agent runtime-state:reset-session <agentId>` — captura logs antes de reset.
-   - `paperclipai agent heartbeat:invoke <agentId>` y seguir `agent runtime-state` hasta que reporte progreso.
-5. No declares recuperación hasta que aparezca un nuevo `lastRunId` con progresión y actividad asociada.
+1. Confirmar que la ruta incluye `@paperclipai/server/dist/vendor/.../
+   opencode-ai/bin/opencode.exe` y el error es `native_session_interrupted`.
+2. `paperclipai --version` y localizar instalación activa.
+3. Inspeccionar el código que resuelve la ruta (`runnerd-codex-transport.js`,
+   `native-session-executor.js`) y comprobar existencia del path.
+4. No parchear el paquete instalado. Proponer symlink/copia o hook pre-start
+   solo con aprobación; documentar que una actualización recrea el vendor tree.
+5. Tras remediación autorizada, verificar el path y ejecutar prueba aprobada.
 
-Salida: secret rotado (si autorizado), nueva sesión del agente y run exitoso comprobado.
+Salida: atribución al runtime nativo o adapter local respaldada por versión,
+código y path.
 
-### 4. Hermes gateway run diagnostics (hermes_gateway adapter)
+### P4 — Diagnosticar y corregir secreto Hermes desalineado
 
-1. `paperclipai agent runtime-state <agentId> --json` → localizar `sessionParamsJson.hermesRunId` o `lastRunId`.
-2. Buscar logs locales: `~/.paperclip/instances/default/data/run-logs/<companyId>/<agentId>/<paperclipRunId>.ndjson` — comparar una ejecución fallida y una exitosa.
-3. Consultar Hermes `/v1/runs/<hermesRunId>` con `API_SERVER_KEY` (hacer una petición autenticada de lectura) y capturar `status`, `admission_id`, `output`.
-4. Inspeccionar admissions en Hermes (`~/.hermes/state.db` `session_admissions`) para ver filas `queued|started|unknown` que colisionen con el mismo `target_session_id`.
-5. Si hay admissions huérfanas, documentar y limpiar solo las filas huérfanas tras discusión: no ejecutar borrados hasta acordado. La remediación segura habitual es reiniciar la parte de dispatch o limpiar admissions antiguas bajo control.
-6. Re-run y verificar tres señales: nuevo `lastRunId`, Hermes `/v1/runs` muestra progresión, y actividad nueva en `activity list` para el issue.
+Diagnóstico (solo lectura):
+1. Confirmar 401 del run y alinear timestamps con logs Hermes.
+2. `agent config-revisions <agentId>` → `afterConfig.adapterConfig.apiKey.secretId`.
+3. `secrets usage <secretId>` → referencias activas; nunca leer el valor.
+4. Validar endpoint: `test-environment: pass` prueba liveness, no auth de
+   creación de runs. El health exporter (8645) puede responder OK mientras
+   `/v1/runs` con el puerto API real (8642) devuelve 401.
+5. Comparar localmente la clave efectiva con la fuente de verdad usando
+   metadatos/resultado booleano, sin imprimir valores.
 
-Salida: causa triada — admission-state corruption, adapter payload sin model, o gateway auth — y evidencia por timestamps/ids.
+Remediación (solo tras autorización):
+6. `paperclipai secrets rotate <secretId> --value-env <ENV_VAR>` (nunca
+   `--value` en texto visible).
+7. Capturar estado previo; `paperclipai agent runtime-state:reset-session <agentId>`.
+8. `paperclipai agent heartbeat:invoke <agentId>` solo si se autorizó.
+9. Verificar nuevo lastRunId con progreso; `errorReason` antiguo puede
+   persistir hasta el próximo run exitoso — no tratarlo como fallo del fix.
 
-### 5. OpenCode / provider / model availability checks
+Salida: discrepancia confirmada; si se autorizó corregir, nuevo run sin 401.
 
-1. Verificar `adapterConfig.model` formato: `provider/model` (contiene `/`).
-2. En el host de OpenCode: `opencode models --refresh` y `opencode models | grep '^<provider>/'` (solo si tienes acceso host).
-3. Confirmar provider block en `~/.config/opencode/opencode.json` y que `models` map incluya el model.
-4. Si la UI list no muestra modelos pero `opencode models --refresh` sí los devuelve, documentar desync y aplicar `OPENCODE_ALLOW_ALL_MODELS=true` en pruebas solo si autorizado; prefer registrar el fallo y arreglar la fuente.
+### P5 — Diagnosticar run Hermes gateway trabado (9 pasos)
 
-Salida: modelo disponible/indisponible y pasos seguros de mitigación.
+1. `agent runtime-state <agentId> --json`: lastRunId, lastRunStatus, lastError,
+   `sessionParamsJson.hermesRunId` si existe.
+2. Leer `~/.paperclip/instances/<id>/data/run-logs/<companyId>/<agentId>/
+   <paperclipRunId>.ndjson`; comparar ejecución fallida vs exitosa.
+3. `GET <apiBaseUrl>/v1/runs/<hermesRunId>` (autenticado, solo lectura):
+   status, admission_id, output length.
+4. `~/.hermes/state.db` → `session_admissions`: target_session_id, status
+   (`queued|started|unknown|terminal`), owner_epoch, generation.
+5. Documentar admissions huérfanas. No borrar filas, parar runs ni reiniciar
+   dispatch sin backup, plan y autorización.
+6. Si se autoriza nueva ejecución: verificar progreso simultáneo en Paperclip,
+   Hermes y activity.
+7. Si `started` sin eventos: buscar admissions duplicadas (`started` +
+   `queued`/`unknown`) para el mismo target_session_id → admission-state
+   corruption.
+8. `sessions` para `paperclip:run:` → verificar `model`/`model_config` no
+   nulos. Si son null, el adapter no está enviando model selection.
+9. Inspeccionar `buildRunBody()` en `hermes-paperclip-adapter/dist/gateway/
+   server/execute.js`. En builds actuales envía `input`, `instructions` y
+   `session_id` opcional; si no hay campo `model`, es defecto de payload.
+
+Salida: hipótesis con evidencia de los tres planos (Paperclip logs, Hermes
+run, admissions/model).
+
+### P6 — Triage de `Model unavailable`
+
+1. `adapterConfig.model` debe ser `provider/model`. IDs anidados:
+   `litellm/azure_ai/gpt-6-luna` → provider=`litellm`.
+2. `opencode.json`: provider bajo `provider`, `models` contiene el ID exacto.
+   Si Paperclip inyecta, verificar `PAPERCLIP_OPENCODE_PROVIDERS`.
+3. `opencode models` como lectura. `--refresh` altera caché local; solo en
+   host/contexto correcto y autorizado.
+4. El adapter usa caché y refresca ante miss. `OPENCODE_ALLOW_ALL_MODELS=true`
+   omite el availability probe pero **no** evita que OpenCode rechace el modelo
+   en `getModel()`. No es un arreglo general.
+5. Si listado y hello probe pasan pero tool calls dan 400 (ej.
+   `reasoning_effort` no aceptado): compatibilidad de request/upstream, no
+   auth. Para LiteLLM Reevolutiva, derivar a `litellm-azure-foundry-config`.
+
+Salida: causa (provider shape, ID/caché, o incompatibilidad de request) con
+evidencia del comando ejecutado.
 
 ## Jev Integration Points
 
 | Procedimiento | Gate | Primitivo | Pregunta |
-|---|---:|---|---|
-| Triage inicial | Clasificación correcta | noul | "¿La evidencia (runId, logs, config) soporta la clasificación adapter/provider/auth/instance?" |
-| ENOENT triage | Sustitución segura | noul | "¿Existe un puente reproducible que no cambia el install upstream?" |
-| Secret misaligned | Suficiencia de evidencia | noul | "¿El secretId aparece en config-revision y usage antes de rotar?" |
-| Gateway run diag | Causa raíz identificada | noul | "¿Los run logs + admissions + Hermes run confirman la causa raíz?" |
+|---|---|---|---|
+| P1 — Triage inicial | Clasificación correcta | `noul` | "¿La evidencia soporta la clasificación adapter/provider/auth/instance?" |
+| P2 — Configurar adapter | Piezas ubicadas | `noul` | "¿Están identificados command, provider, credencial y model con diferencias test/execute?" |
+| P3 — ENOENT triage | Atribución correcta | `noul` | "¿El path y el código instalado confirman que el ENOENT es del native runner?" |
+| P4 — Secret fix | Suficiencia de evidencia | `noul` | "¿El secretId aparece en config-revision y usage antes de cualquier mutación?" |
+| P5 — Gateway run diag | Causa raíz identificada | `noul` | "¿Los tres planos (Paperclip logs, Hermes run, admissions/model) confirman la hipótesis?" |
+| P6 — Model unavailable | Causa distinguida | `noul` | "¿La causa es provider shape, ID/caché o incompatibilidad de request?" |
 
-Si Jev no está disponible, registra `[hermes-judgment]` con nivel de confianza y pide autorización humana para mutaciones.
+Sin Jev: `[hermes-judgment]` con nivel de confianza; escalar mutaciones al
+usuario.
 
 ## Pitfalls
 
-- Rotar un secret sin confirmar `secretId` puede romper más agentes: siempre confirmar con `config-revisions` y `secrets usage`.
-- `opencode.exe` ENOENT a menudo es un layout vendor cambiado por actualización — un puente local puede funcionar pero se pierde en la próxima actualización.
-- `adapterConfig.apiBaseUrl` apuntando al health exporter (puerto 8645) puede devolver `health OK` mientras `POST /v1/runs` 401s o 400s.
-- `opencode_local` legacy no infiere disposition; los runs pueden terminar `succeeded` sin cambiar issue state.
-- No rotes secretos ni edites config de adapters sin gate humano y backup de la referencia del secret.
+- `test-environment: pass` es liveness, no auth. Siempre verificar endpoint
+  efectivo y probar con el mismo bearer token.
+- `adapterConfig.apiBaseUrl` apuntando al health exporter (8645) da health OK
+  mientras `POST /v1/runs` al puerto API real (8642) devuelve 401.
+- La clave `provider` en `opencode.json` debe ser exactamente `provider`. Un
+  wrapper (`{"LiteLLM": {...}}`) se ignora silenciosamente.
+- `OPENCODE_ALLOW_ALL_MODELS=true` omite el probe pero OpenCode igual rechaza
+  modelos que no están en su `getModel()`. No es un fix universal.
+- `PAPERCLIP_OPENCODE_PROVIDERS` con `{env:VAR}` se resuelve del entorno del
+  servidor Paperclip, no del cliente que diagnostica.
+- Model IDs con `/` anidados parsean correctamente: `litellm/azure_ai/gpt-6-luna`
+  → provider=`litellm`, model=`azure_ai/gpt-6-luna`.
+- Sin `PAPERCLIP_OPENCODE_SMALL_MODEL`, OpenCode falla en tareas auxiliares
+  (session titles) y aborta runs.
+- El test path usa `adapterConfig.command`; el execute path también atiende
+  `PAPERCLIP_OPENCODE_COMMAND`. Run verde ≠ test verde.
+- `opencode serve --service` daemon ignora `XDG_CONFIG_HOME` del cliente. Usar
+  `opencode service set env` o `~/.config/opencode/.env` + `service restart`.
+- `dotenv`-loaded vars no aparecen en `/proc/<pid>/environ`. Verificar
+  funcionalmente, nunca concluir desde `/proc`.
+- `runtime-state:reset-session` limpia `lastError`/`sessionId` pero
+  `errorReason` persiste hasta el próximo run exitoso.
+- Gateway model compatibility: hello probe puede pasar mientras tool calls
+  reales dan 400. No asumir auth cuando listing ya pasa.
+- `hermes_gateway` no implementa skill sync (`supported=false`). Un agente
+  gateway recibe cero company skills.
+- No rotar secrets sin confirmar `secretId` en `config-revisions` y `usage`.
+- No limpiar admissions ni reiniciar dispatch sin backup y autorización.
+- El vendor path de `opencode.exe` se recrea en cada update de Paperclip.
+  Automatizar el puente con un script pre-start.
 
 ## Verification
 
-1. Para ENOENT: `paperclipai --version` + existencia de la ruta vendor o ejecución de run de prueba.
-2. Para secret fix: nuevo `lastRunId` con progresión + `activity` que muestre `environment.lease_acquired` y `issue` avance.
-3. Para gateway diag: Hermes `/v1/runs` muestra eventos; `~/.paperclip/instances/default/data/run-logs` tiene nuevos eventos para el run.
-4. Para model availability: `opencode models --refresh` y `opencode models` listan el provider/model o la evidencia de por qué no.
+1. P1: clasificación con IDs y timestamps; sin mutaciones.
+2. P2: matriz command/provider/credential/model documentada; ningún secreto
+   visible.
+3. P3: vendor path confirmado con versión y código fuente.
+4. P4: nuevo `lastRunId` con progresión post-rotación; o discrepancia
+   documentada sin rotar.
+5. P5: hipótesis con evidencia de logs NDJSON, `/v1/runs` y admissions.
+6. P6: `opencode models` lista el modelo o se documenta por qué no.
+7. Mutaciones solo con autorización explícita y confirmación post-cambio.
 
 ## References
 
-- `references/adapter-config.md` — provider shape, env vars y guardarraíles
-- `references/gateway-run-diagnostics.md` — pasos para correlacionar run IDs, logs y admissions
-
+- `references/adapter-config.md` — provider shape, env vars, secretId trace,
+  model id rules
+- `references/gateway-run-diagnostics.md` — correlación run IDs, logs NDJSON,
+  admissions, API probes
