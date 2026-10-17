@@ -228,11 +228,11 @@ skills (`~/.claude/skills`), sin perder contenido.
    `managed`, `desired`.
 2. `state=external managed=false` con `origin=company_managed` indica colisión:
    un directorio real ocupa el nombre que Paperclip quiere gestionar.
-3. Respaldar el directorio real: `cp -r ~/.claude/skills/<name> /tmp/<name>-backup`.
-4. `rm -rf ~/.claude/skills/<name>`.
+3. Respaldar con ruta única y verificar: `backup="$HOME/.claude/skills/<name>.backup.$(date +%Y%m%d%H%M%S)"; cp -a -- "$HOME/.claude/skills/<name>" "$backup"`; confirmar que el backup contiene el contenido esperado.
+4. Antes de quitarlo, verificar que es un directorio real (no symlink), que el backup es legible, y tener autorización explícita. Solo entonces: `rm -r -- "$HOME/.claude/skills/<name>"`.
 5. `paperclipai skills agent sync <agentId> -C <companyId> --skill <ref> --mode add`.
 6. Verificar: `skills agent list` muestra `state=installed managed=true`.
-7. Para importar desde Source: `paperclipai skill import --payload-json '{"source":"<repo-url>"}'`.
+7. Para importar desde Source: `paperclipai skill import --payload-json '{"source":"<repo-url>"}' -C <companyId>`.
 8. Reglas de aislamiento: solo symlinks en `~/.claude/skills`; skills
    project-specific en `.agents/skills/` del repo; company-private con prefijo.
 
@@ -245,11 +245,12 @@ reales colisionando, importación desde Source verificada.
 |---|---|
 | UI 500 + API 200 = payload ENOENT; reparar con `npm install`, sin restart | P2 / Pitfalls |
 | `deploymentMode`: `local_trusted` vs `authenticated`; `bootstrap-ceo` solo en authenticated | P5 / Pitfalls |
-| CEO gate busca `role === "ceo"`, no `title`; `membershipRole=ceo` rechazado | P5 / Pitfalls |
+| `membershipRole=ceo` rechazado; roles humanos válidos son `owner`, `admin`, `operator`, `viewer` | P5 / Pitfalls |
 | Hot restart preserva runs; `hot-restart-report.json` como fuente de verdad post-restart | P3 / Pitfalls |
 | `doctor` puede false-negative `Service version: Running unknown`; verificar con `service status` y `health` | P1 / Pitfalls |
 | `dotenv`-loaded vars no en `/proc/<pid>/environ` | Pitfalls |
 | Backup automático: 60min interval, 30d retention, `data/backups/` | P4 / How to Run |
+| `backupRetention` visible en `instance settings:general`, valores en `config.json → database.backup` | P4 |
 | No composite FK `(company_id, project_id)`; cross-company links silenciosos | P1 (nota en health check) |
 | `~/.claude/skills` debe ser solo symlinks; directorio real = `state=external` | P6 / Pitfalls |
 | Import desde Source es JSON: `--payload-json '{"source":"<url>"}'` | P6 |
