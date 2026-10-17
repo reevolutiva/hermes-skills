@@ -1,39 +1,45 @@
 # Matriz de adjudicación — Slice 4 (2026-10-17)
 
-Fuente: `rescate/2026-10-15/MANIFEST.md`. Verificación contra skills canónicas del tap (`data/workspace/projects/hermes-skills/skills/`).
+**Estado: investigación corregida; adjudicación pendiente de integrar.** El primer borrador de esta matriz afirmó erróneamente que el contenido del rescate ya estaba integrado en la rama canónica del PR #17. La comparación real de esa rama identificó contenido exclusivo todavía pendiente. No usar las decisiones provisionales anteriores como resultado final.
 
-## Archivos nuevos (7/7 en el tap)
+Fuente: `rescate/2026-10-15/MANIFEST.md`. Comparación de las fuentes del rescate contra las skills de la rama `feat/ree-paperclip-adapter-diagnosis`.
 
-| # | Archivo | Origen | Líneas MANIFEST | Líneas en tap | Estado |
-|---|---------|--------|-----------------|---------------|--------|
-| 1 | `references/kustomization-operational-status.md` | vm-services | 101 | 101 | ✓ presente |
-| 2 | `references/almacenamiento-nodos.md` | vm-services | 112 | 112 | ✓ presente |
-| 3 | `references/http-performance-tailnet.md` | vm-services | 105 | 105 | ✓ presente |
-| 4 | `templates/handoff-con-gates.md` | vm-services | 77 | 77 | ✓ presente |
-| 5 | `references/declarar-crs-de-runtime-en-git.md` | imac27 | 98 | 98 | ✓ presente |
-| 6 | `wordpress-bedrock-migration/SKILL.md` | vm-services | 479 | 479 | ✓ superconjunto aplicado |
-| 7 | `wordpress-performance-diagnosis/SKILL.md` | vm-services | 315 | 315 | ✓ superconjunto aplicado |
+## Archivos nuevos
 
-## Divergencias en archivos existentes (6/6 adjudicadas)
+Los siguientes cinco artefactos listados como nuevos en el MANIFEST existen en el workspace del tap `/data/workspace/projects/hermes-skills` con el conteo de líneas esperado, pero ese workspace tiene cambios no commiteados y está en la rama `wip/paperclip-preexisting-20261016`; su contenido aún no se ha verificado en `origin/main` ni integrado en PR #17:
 
-| # | Archivo | Decisión | Razón |
-|---|---------|----------|-------|
-| 1 | `reevolutiva-infra-gitops/SKILL.md` (×3 copias) | **Fusionado manualmente.** La skill canónica actual (~1200 líneas) integra las tres copias: `main` (805), `vm-services` (1063), `imac27` (850). El merge manual ocurrió en sesión del 2026-10-15 y preserva todas las secciones únicas de cada copia (Tailscale SSH, nodo Flatcar, DNS del tailnet, LiteLLM cache/guardrails/key rotation, WordPress Cloudflare tunnel, etc.). | Ninguna copia era superconjunto; se requirió merge manual con revisión sección por sección. |
-| 2 | `references/ghcr-imagenes.md` (2 versiones) | **Fusionado.** El archivo canónico (183 líneas) preserva el contenido de `main`=`imac27` (visibilidad y pull anónimo en GHCR) y absorbió el contenido de `vm-services` (jerarquía de registros + build multi-arch) en secciones adicionales. | Eran dos documentos distintos con el mismo nombre. La fusión produjo un solo archivo con ambas coberturas. |
-| 3 | `references/cloudflare-tunnel.md` | **Aplicada la versión de imac27.** Las 8 líneas sustituidas corrigen información de ruteo. | El resto del archivo (188 líneas) era idéntico entre las tres copias. |
-| 4 | `references/tailscale-acl.md` | **Aplicada la versión de imac27.** Las 2 líneas sustituidas corrigen la regla de ACL. | El resto del archivo (60 líneas) era idéntico entre las tres copias. |
-| 5 | `wordpress-bedrock-migration/SKILL.md` (+13 líneas imac27) | **Ya incorporadas.** La skill canónica actual (479 líneas) contiene todas las secciones de imac27: los pitfalls de `wp-config.php` de Demyx, `vendor/`, `index.php` 404 de OLS, readiness probe, fsGroup, tunnel cutover, multi-arch. Las 13 líneas "propias" eran reordenamiento estructural, no contenido neto nuevo. | La copia de imac27 (549 líneas) tenía las mismas secciones que la canónica pero con estructura distinta (subsecciones con `###` vs `##`). |
-| 6 | `wordpress-performance-diagnosis/SKILL.md` (+14 líneas imac27) | **Ya incorporadas.** La skill canónica actual (315 líneas) contiene todas las secciones de imac27: "El sitio CAÍDO", auditoría de caché, pitfalls de OLS/LSAPI, `fsGroup` vs usuario PHP. Las 14 líneas "propias" eran reordenamiento estructural. | La copia de imac27 (295 líneas) es subconjunto estricto de la canónica actual. |
+| # | Archivo | Origen | Líneas MANIFEST | Estado observado |
+|---|---------|--------|-----------------|------------------|
+| 1 | `references/kustomization-operational-status.md` | vm-services | 101 | Existe en workspace tap; confirmar commit y contenido |
+| 2 | `references/almacenamiento-nodos.md` | vm-services | 112 | Existe en workspace tap; confirmar commit y contenido |
+| 3 | `references/http-performance-tailnet.md` | vm-services | 105 | Existe en workspace tap; confirmar commit y contenido |
+| 4 | `templates/handoff-con-gates.md` | vm-services | 77 | Existe en workspace tap; confirmar commit y contenido |
+| 5 | `references/declarar-crs-de-runtime-en-git.md` | imac27 | 98 | Existe en workspace tap; confirmar commit y contenido |
 
-## Conclusión
+Las dos entradas del MANIFEST para las versiones vm-services de `wordpress-bedrock-migration/SKILL.md` (479 líneas) y `wordpress-performance-diagnosis/SKILL.md` (315 líneas) **ya están en la rama del PR #17** con esos conteos; se comparan con las copias imac27 más abajo.
 
-**Las 6 divergencias del rescate 2026-10-15 están adjudicadas.** El merge ocurrió en la sesión del 2026-10-15 que produjo el propio rescate: las skills canónicas del tap contienen todo el conocimiento de las tres copias (main, vm-services, imac27). Los 7 archivos nuevos están presentes en el tap con los conteos de líneas exactos del MANIFEST. No hay contenido huérfano.
+## Divergencias: hallazgos línea por línea
 
-## Verificación (Fase 4d)
+| # | Archivo | Hallazgo comprobado en la rama del PR #17 | Disposición provisional |
+|---|---------|--------------------------------------------|-------------------------|
+| 1 | `reevolutiva-infra-gitops/SKILL.md` (×3 copias) | La copia vm-services aporta bloques sustantivos ausentes, incluidos limpieza segura de jobs efímeros, repos de servicio separados de Flux, diagnóstico de UI LiteLLM con mediciones cliente/pod, capacidad Longhorn, ownership SSA de CRs de runtime, backend Paperclip, diferencias DNS por nodo, preservación de usuarios/roles Paperclip y handoff entre sesiones. imac27 también tiene secciones exclusivas; parte parece histórica/topología sensible y exige cotejo actual antes de aceptar. | **Pendiente:** adjudicar cada bloque con evidencia actual; aceptar/fusionar contenido generalizable, descartar solo lo obsoleto o duplicado con razón, redactar datos sensibles. No asumir que todo el snapshot es vigente. |
+| 2 | `references/ghcr-imagenes.md` | La rama tiene el documento `main` de 183 líneas; la fuente vm-services de 105 líneas es un documento distinto con jerarquía de registros, publicación multi-arch y ownership GitOps. | **Pendiente:** renombrar la fuente multi-arch a una referencia independiente (p. ej. `publicacion-imagenes-multiarch.md`) o fusionarla tras validar que sus detalles no contradicen la política actual del registry. |
+| 3 | `references/cloudflare-tunnel.md` | El snapshot imac27 tiene ocho líneas diferentes; incluye identificadores de cuenta/túnel, nombres de secretos y detalle de credenciales. | **Pendiente:** comparar semanticamente; conservar solo correcciones técnicas verificadas, usar placeholders y eliminar nombres/datos de credenciales del artefacto. |
+| 4 | `references/tailscale-acl.md` | Dos líneas del snapshot imac27 difieren; el resto coincide. Contiene nombres de secretos/credenciales en el rescate. | **Pendiente:** comparar semanticamente; preservar la regla corregida solo tras verificarla, y sustituir cualquier nombre sensible por el canal autorizado genérico. |
+| 5 | `wordpress-bedrock-migration/SKILL.md` | La copia imac27 aporta contenido ausente: cotejo fila por fila de `wp_blogs` contra hosts, diagnóstico local para separar 404 de WP/ruteo, auditoría de navegador CDP, restauración de adjuntos/metadata/cache, transferencia alternativa de uploads para origen con poco espacio temporal y consulta SQL PDO sin WP-CLI. También incluye ruta local de script CDP y comandos de limpieza destructivos que requieren revisión/redacción. | **Pendiente:** aceptar/fusionar lo portable y útil; eliminar ruta machine-local, evitar instrucciones de borrado amplio, revisar y generalizar comandos de transferencia/credenciales. |
+| 6 | `wordpress-performance-diagnosis/SKILL.md` | La copia imac27 aporta auditoría CDP en navegador y diagnóstico/purga de 404 stale de LiteSpeed Cache tras restaurar archivos. | **Pendiente:** fusionar la cobertura duplicada una sola vez y hacer la herramienta CDP portable; conservar el procedimiento de caché con gate funcional. |
 
-```bash
-cd /data/workspace/projects/hermes-skills
-python3 scripts/validate-skills-catalog.py  # OK: 16 skills
-```
+## Verificación ejecutada
 
-El directorio `rescate/2026-10-15/` se conserva como registro histórico de la operación de rescate; su contenido ya fue absorbido por las skills canónicas.
+- La comparación de líneas no vacías halló 246 líneas de vm-services y 120 de imac27 ausentes de la skill GitOps de esta rama.
+- Halló 72 líneas de la copia imac27 de Bedrock y 25 de Performance ausentes de las skills de esta rama.
+- La comparación semántica de esas diferencias está en curso; los conteos de línea no se usan como prueba de equivalencia.
+- Los conteos de archivos del workspace del tap son evidencia de presencia local únicamente, no de que estén commiteados, en `main` o en PR #17.
+
+## Próximos pasos obligatorios para cerrar Slice 4
+
+1. Completar la clasificación de cada bloque exclusivo (aceptar, fusionar, descartar o renombrar) con razón verificable.
+2. Implementar únicamente las adjudicaciones aceptadas en las skills de la rama correcta; no copiar snapshots completos a ciegas.
+3. Actualizar el MANIFEST solo cuando la adjudicación real esté aplicada y el estado de commit/PR verificado.
+4. Ejecutar `git diff --check`, `python3 scripts/validate-skills-catalog.py`, revisión de secretos y comprobar que el diff contiene solo adjudicaciones aprobadas.
+5. Mantener PR #17 como trabajo Paperclip independiente si las adjudicaciones de infraestructura pertenecen al tap/worktree `wip/paperclip-preexisting-20261016`; no mezclar ramas sin decisión explícita.

@@ -1,6 +1,6 @@
 # Estado de avance — 2026-10-17
 
-**Fase activa:** Cierre. Los 5 slices están completos. PR #17 listo para revisión y merge.
+**Fase activa:** Slice 4 — adjudicación de divergencias; la investigación inicial detectó una matriz errónea y se está rehaciendo la comparación semántica. No declarar PR #17 listo para merge hasta corregir su alcance o separar los cambios.
 
 ## Slice 1 ✓ — ree-paperclip-board-ops
 
@@ -23,12 +23,11 @@
 - `platforms: [linux]` (usa systemd, journalctl, /proc).
 - Validación: `python3 scripts/validate-skills-catalog.py` → OK: 16 skills.
 
-## Slice 4 ✓ — Adjudicación de divergencias del rescate
+## Slice 4 — Adjudicación de divergencias del rescate (pendiente)
 
-- Matriz de adjudicación en `docs/adjudicacion-divergencias-2026-10-17.md`. Las 6 divergencias del rescate 2026-10-15 están adjudicadas.
-- Las skills canónicas del tap (`main`, rama `wip/paperclip-preexisting-20261016`) ya contienen todo el conocimiento de las tres copias (main, vm-services, imac27).
-- Los 7 archivos nuevos del MANIFEST están presentes en el tap con conteos de líneas exactos.
-- Commiteado en PR #17 (commit `2a8a073`).
+- Matriz de adjudicación en `docs/adjudicacion-divergencias-2026-10-17.md` (corregida tras detectar falso positivo de integración). Las 6 divergencias están siendo auditadas semánticamente; la comparación línea a línea detectó contenido exclusivo aún no integrado en la rama del PR #17.
+- Los cinco archivos nuevos del MANIFEST existen en el workspace del tap pero en rama `wip/paperclip-preexisting-20261016` con cambios sin commitear; no se verifican en `origin/main` ni en este PR.
+- Commiteado en PR #17 el documento de trabajo (commit `2a8a073`), corregido en `2e7ae0a`.
 
 ## Slice 5 ✓ — related_skills de ree-hermes-paperclip-method
 
