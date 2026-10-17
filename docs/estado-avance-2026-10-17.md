@@ -1,6 +1,6 @@
 # Estado de avance — 2026-10-17
 
-**Fase activa:** Adjudicación de divergencias (Slice 4). Slices 1, 2, 3 y 5 completados en la rama del PR #17; pendiente adjudicar divergencias del rescate.
+**Fase activa:** Cierre. Los 5 slices están completos. PR #17 listo para revisión y merge.
 
 ## Slice 1 ✓ — ree-paperclip-board-ops
 
@@ -23,10 +23,12 @@
 - `platforms: [linux]` (usa systemd, journalctl, /proc).
 - Validación: `python3 scripts/validate-skills-catalog.py` → OK: 16 skills.
 
-## Slice 4 — Adjudicación de divergencias (pendiente)
+## Slice 4 ✓ — Adjudicación de divergencias del rescate
 
-- 3 skills de infraestructura con divergencias (`reevolutiva-infra-gitops`, `wordpress-bedrock-migration`, `wordpress-performance-diagnosis`) + archivos nuevos según `rescate/2026-10-15/MANIFEST.md`.
-- Fases: 4a Investigar → 4b Decidir → 4c Implementar → 4d Revisar.
+- Matriz de adjudicación en `docs/adjudicacion-divergencias-2026-10-17.md`. Las 6 divergencias del rescate 2026-10-15 están adjudicadas.
+- Las skills canónicas del tap (`main`, rama `wip/paperclip-preexisting-20261016`) ya contienen todo el conocimiento de las tres copias (main, vm-services, imac27).
+- Los 7 archivos nuevos del MANIFEST están presentes en el tap con conteos de líneas exactos.
+- Commiteado en PR #17 (commit `2a8a073`).
 
 ## Slice 5 ✓ — related_skills de ree-hermes-paperclip-method
 
@@ -42,4 +44,4 @@
 - `skills/ree-paperclip-board-ops/SKILL.md` — Slice 1 (mergeado).
 - `skills/ree-paperclip-adapter-diagnosis/SKILL.md` — Slice 2 (en PR #17 Draft).
 - `skills/ree-paperclip-instance-admin/SKILL.md` — Slice 3 (en PR #17 Draft).
-- `skills/ree-hermes-paperclip-method/SKILL.md` — Slice 5 (related_skills actualizado en PR #17 Draft).
+- `docs/adjudicacion-divergencias-2026-10-17.md` — matriz de adjudicación Slice 4.
