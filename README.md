@@ -17,6 +17,8 @@ skills/
 ├── ree-repo-verify/                  # Coherencia y Definition of Done
 ├── ree-hermes-paperclip-method/      # Método Hermes intake→Paperclip
 ├── ree-paperclip-board-ops/          # Gestión diaria del board Paperclip
+├── ree-paperclip-adapter-diagnosis/  # Diagnóstico de adapters (OpenCode, LiteLLM, gateway)
+├── ree-paperclip-instance-admin/     # Administración de instancia (servicio, backup, reparación)
 ├── reevolutiva-infra-gitops/         # Operación de Flux + K3s + AKV
 ├── wordpress-bedrock-migration/      # Migración WordPress Bedrock a K3s
 └── wordpress-performance-diagnosis/  # Diagnóstico de WordPress en K8s
@@ -54,6 +56,8 @@ Cada skill puede incluir su propio `references/` y `templates/` para separar el 
 `ree-paperclip-board-ops` — gestión diaria del board: chequeos, steering de issues, revisión de PRs de agentes y diagnóstico de runs.
 
 `ree-paperclip-adapter-diagnosis` — diagnóstico de adapters y gateways: OpenCode, LiteLLM y Hermes gateway.
+
+`ree-paperclip-instance-admin` — administración de la instancia: servicio, backup, reparación de payload, bootstrap CEO.
 
 ### Habilitación de repositorios
 
