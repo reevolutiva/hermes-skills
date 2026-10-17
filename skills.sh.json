@@ -25,7 +25,7 @@
     },
     {
       "title": "Hermes & Paperclip",
-      "skills": ["ree-hermes-paperclip-method", "ree-paperclip-board-ops"]
+      "skills": ["ree-hermes-paperclip-method", "ree-paperclip-board-ops", "ree-paperclip-adapter-diagnosis"]
     },
     {
       "title": "Infrastructure & GitOps",

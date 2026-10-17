@@ -20,6 +20,7 @@ skills/                              # Convención del tap: skills/<name>/SKILL.
 ├── ree-repo-verify/                 # Coherencia y Definition of Done
 ├── ree-hermes-paperclip-method/     # Método Hermes intake→Paperclip
 ├── ree-paperclip-board-ops/         # Gestión diaria del board Paperclip
+├── ree-paperclip-adapter-diagnosis/  # Diagnóstico de adapters (OpenCode, LiteLLM, gateway)
 ├── reevolutiva-infra-gitops/        # GitOps: Flux + K3s + AKV
 ├── wordpress-bedrock-migration/     # Migración WP Bedrock → K3s
 └── wordpress-performance-diagnosis/ # Diagnóstico de WP en K8s

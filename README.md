@@ -53,6 +53,8 @@ Cada skill puede incluir su propio `references/` y `templates/` para separar el 
 
 `ree-paperclip-board-ops` — gestión diaria del board: chequeos, steering de issues, revisión de PRs de agentes y diagnóstico de runs.
 
+`ree-paperclip-adapter-diagnosis` — diagnóstico de adapters y gateways: OpenCode, LiteLLM y Hermes gateway.
+
 ### Habilitación de repositorios
 
 `ree-repo` — orquesta el pipeline F1-F6 desde documentos de producto hasta verificación.
