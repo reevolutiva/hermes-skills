@@ -16,6 +16,7 @@ skills/
 ├── ree-repo-validate/                # Validación de documentos fuente
 ├── ree-repo-verify/                  # Coherencia y Definition of Done
 ├── ree-hermes-paperclip-method/      # Método Hermes intake→Paperclip
+├── ree-paperclip-board-ops/          # Gestión diaria del board Paperclip
 ├── reevolutiva-infra-gitops/         # Operación de Flux + K3s + AKV
 ├── wordpress-bedrock-migration/      # Migración WordPress Bedrock a K3s
 └── wordpress-performance-diagnosis/  # Diagnóstico de WordPress en K8s
@@ -50,6 +51,8 @@ Cada skill puede incluir su propio `references/` y `templates/` para separar el 
 
 `ree-hermes-paperclip-method` — contrato de intake, delegación Paperclip, review independiente y captura de aprendizaje.
 
+`ree-paperclip-board-ops` — gestión diaria del board: chequeos, steering de issues, revisión de PRs de agentes y diagnóstico de runs.
+
 ### Habilitación de repositorios
 
 `ree-repo` — orquesta el pipeline F1-F6 desde documentos de producto hasta verificación.
@@ -79,6 +82,7 @@ hermes skills tap add reevolutiva/hermes-skills
 hermes skills install reevolutiva/hermes-skills/skills/ree-learn
 hermes skills install reevolutiva/hermes-skills/skills/ree-producto
 hermes skills install reevolutiva/hermes-skills/skills/ree-hermes-paperclip-method
+hermes skills install reevolutiva/hermes-skills/skills/ree-paperclip-board-ops
 
 # Habilitación de repositorios (orquestador y seis fases)
 hermes skills install reevolutiva/hermes-skills/skills/ree-repo
