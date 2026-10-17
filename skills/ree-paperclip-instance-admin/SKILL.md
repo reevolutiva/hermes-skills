@@ -1,10 +1,10 @@
 ---
 name: ree-paperclip-instance-admin
-description: "Administra Paperclip: servicio, backup, reparación y admin."
+description: "Administra Paperclip: servicio, backup y reparación."
 version: 0.1.0
 author: Hermes
 license: MIT
-platforms: [linux, macos]
+platforms: [linux]
 metadata:
   hermes:
     tags: [paperclip, instance, service, backup, repair, admin]
@@ -106,7 +106,7 @@ Crea un backup puntual y verifica su integridad. No restaura.
 3. Verificar integridad: `gzip -t <backupPath>` (no comprime en vivo, solo verifica estructura gzip).
 4. Listar backups existentes: `ls -lh <backupDir>/` (por defecto `~/.paperclip/instances/<id>/data/backups/`).
 5. Configuración de backup automático: `config.json → database.backup.{enabled,intervalMinutes(60),retentionDays(30),dir}`. También visible en `instance settings:general → backupRetention`.
-6. No restaurar sin plan de rollback, backup fresco adicional y autorización explícita. La restauración no es procedimiento de rutina.
+6. No restaurar desde un backup sin plan de recuperación probado, backup fresco adicional y autorización explícita. El CLI v2026.1012.0 no ofrece `db:restore`; si se necesita recuperar la base, detenerse y preparar un procedimiento específico para el modo de base de datos, con prueba aislada y rollback antes de tocar producción.
 
 Criterio de salida: backup creado, integridad gzip verificada, ruta y tamaño registrados.
 
@@ -119,13 +119,14 @@ Crea el primer admin en modo `authenticated` y aprueba join requests bloqueadas.
 2. `paperclipai auth bootstrap-ceo --force --expires-hours 24 --base-url <url>` (ej. `https://paperclip.coyote-paridae.ts.net`).
 3. El invite es one-time; compartir solo con el destinatario autorizado.
 
-**Unblock join request:**
-1. `GET /api/companies/<companyId>/agents`: identificar agente con `reportsTo: null`.
-2. El gate de aprobación busca `role === "ceo"`, no `title`.
-3. `PATCH /api/agents/<agentId>` con `{"role": "ceo"}` (temporal).
+**Unblock join request (solo con autorización explícita):**
+1. `GET /api/companies/<companyId>/agents`: identificar candidato con `reportsTo: null`; registrar su `role` original y verificar que la compañía/request sean las correctas.
+2. El gate de aprobación busca un agente con `role === "ceo"`, no `title`.
+3. Si no hay CEO y existe un candidato adecuado, guardar el estado original y `PATCH /api/agents/<agentId>` con `{"role": "ceo"}` (cambio temporal autorizado).
 4. `POST /api/companies/<companyId>/join-requests/<requestId>/approve`.
-5. `PATCH /api/agents/<agentId>` con `{"role": "<original>"}`.
-6. `PATCH /api/companies/<companyId>/members/<principalId>` con `{"membershipRole": "ceo"}` **no funciona**: `ceo` no es membership role válido (solo `owner`, `admin`, `operator`, `viewer`).
+5. Restaurar inmediatamente `role` original con `PATCH /api/agents/<agentId>`; releer el agente y la join request para verificar ambos estados.
+6. Si falla el approve, restaurar igualmente el rol temporal. Si no se puede confirmar la restauración, detenerse y escalar; no continuar con más cambios.
+7. `PATCH /api/companies/<companyId>/members/<principalId>` con `{"membershipRole": "ceo"}` no funciona: `ceo` no es membership role humano válido (solo `owner`, `admin`, `operator`, `viewer`).
 
 Criterio de salida: invite creado (o unreachable en `local_trusted`); join request aprobada y rol de agente restaurado.
 
@@ -135,11 +136,11 @@ Diagnostica y resuelve colisiones en el directorio compartido `~/.claude/skills`
 
 1. `paperclipai skills agent list <agentId> -C <companyId> --json`: revisar `state`, `managed`, `desired`, `origin`.
 2. `state=external managed=false` con `origin=company_managed` indica colisión: un directorio real ocupa el nombre que Paperclip quiere gestionar como symlink.
-3. Respaldar: `cp -r ~/.claude/skills/<name> /tmp/<name>-backup`.
-4. `rm -rf ~/.claude/skills/<name>`.
+3. Respaldar con ruta única: `backup="$target.backup.$(date +%Y%m%d%H%M%S)"; cp -a -- "$target" "$backup"`; revisar el backup y confirmar que contiene el contenido esperado.
+4. Antes de quitarlo, verificar que `$target` sigue siendo el directorio real previsto (no symlink), que el backup se puede leer, y tener autorización explícita. Solo entonces: `rm -r -- "$target"`.
 5. `paperclipai skills agent sync <agentId> -C <companyId> --skill <ref> --mode add`.
 6. Verificar: `skills agent list` muestra `state=installed managed=true`.
-7. Importar desde Source: `paperclipai skills import --payload-json '{"source":"<repo-url>"}'`.
+7. Importar desde Source: `paperclipai skill import --payload-json '{"source":"<repo-url>"}' -C <companyId>`.
 8. Reglas de aislamiento:
    - Solo symlinks en `~/.claude/skills`.
    - Skills project-specific en `.agents/skills/` del repo.
@@ -169,7 +170,8 @@ Sin Jev disponible, registrar `[hermes-judgment]` con nivel de confianza y escal
 - **`membershipRole: "ceo"` es rechazado**. Membership roles válidos: `owner`, `admin`, `operator`, `viewer`. Para desbloquear join requests, cambiar el `role` del agente, no el membership.
 - **`doctor` puede dar false-negative `Service version: Running unknown`**. Si `service status --json` y `health --json` reportan la versión correcta, el false-negative es inofensivo.
 - **Hot restart preserva runs activos**. `--wait` drena runs antes de reiniciar; sin `--wait`, los adopta. `hot-restart-report.json` es la fuente de verdad post-restart.
-- **No hay comando `db:restore` en el CLI**. La restauración no está expuesta como comando; requiere plan explícito y autorización.
+- **No hay comando `db:restore` en el CLI**. No improvisar un restore con `psql`/`gzip` en producción: requiere plan probado para el modo de base de datos, copia adicional, aislamiento y rollback aprobados.
+- **Una join request no justifica cambiar roles sin permiso.** Capturar el rol original y restaurarlo también si el approve falla; confirmar la lectura posterior.
 - **`~/.claude/skills` debe contener solo symlinks**. Un directorio real → `state=external managed=false` y Paperclip deja de gestionar ese skill.
 - **No hay composite FK `(company_id, project_id)`**. Issues pueden referenciar proyectos de otra compañía silenciosamente. Detectar con: `select i.identifier, i.company_id, p.company_id from issues i join projects p on p.id = i.project_id where i.project_id is not null and i.company_id <> p.company_id;`.
 - **`dotenv`-loaded vars no aparecen en `/proc/<pid>/environ`**. Usar `paperclipai agent configuration` o `instance settings:general` para inspeccionar, no el entorno del proceso.
@@ -182,8 +184,9 @@ Sin Jev disponible, registrar `[hermes-judgment]` con nivel de confianza y escal
 2. UI 500 reparada: `curl /` → 200, payload restaurado, causa documentada.
 3. Hot restart: nuevo PID, health OK, `hot-restart-report.json` confirma preservación de runs.
 4. Backup: `gzip -t <path>` pasa, ruta y tamaño registrados.
-5. Bootstrap/unblock: join request aprobada, rol de agente restaurado a original.
-6. Skills home: `skills agent list` muestra `state=installed managed=true` para todos los skills.
-7. Comandos validados contra `paperclipai --help` real (v2026.1012.0).
+5. Bootstrap/unblock: join request aprobada, rol de agente restaurado a original aun si el approve falla; estado final releído.
+6. Skills home: `skills agent list` muestra `state=installed managed=true` para todos los skills; backup legible y eliminación solo tras autorización.
+7. Restauración: no se ejecuta en producción sin procedimiento específico probado, backup adicional, rollback y autorización.
+8. Comandos validados contra `paperclipai --help` real (v2026.1012.0).
 
 Las referencias técnicas están en `references/instance-repair.md`.

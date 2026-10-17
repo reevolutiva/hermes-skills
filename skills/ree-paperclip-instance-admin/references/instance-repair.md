@@ -42,7 +42,7 @@ Why a payload can vanish: an interrupted or failed auto-update. `~/.paperclip/cl
 
 For read-only inspection prefer the HTTP API on `127.0.0.1:3100` — no auth in `local_trusted` mode: `/api/health`, `/api/companies`, `/api/companies/<companyId>/projects`, `/api/projects/<id>`.
 
-`psql` also works when you need a set-based check the API does not expose: the embedded instance accepts the package's **default `paperclip` role and password** over `127.0.0.1:<embeddedPostgresPort>` (export `PGPASSWORD`; `pg_hba.conf` demands a password on every local and host connection). That credential is not in the server env (`/proc/<pid>/environ` carries no PG/DATABASE vars) nor in `config.json`, so use the default and never print it.
+`psql` may be needed for set-based checks not exposed by the API. Only use a credential explicitly approved for this instance and obtained from its authorized secret-management source; do not assume, copy, or publish package defaults. Never print the credential or expose it in process arguments, logs, or versioned files.
 
 Schema trap worth auditing: there is **no composite FK** on `(company_id, project_id)` (nor on goals), so an issue can reference another company's project and link **silently**. Detect with:
 
