@@ -10,9 +10,9 @@ metadata:
     tags: [method, paperclip, intake, delegation, verification, review, learning]
     related_skills:
       - ree-learn
-      - ree-intake
-      - sdlc-review
-      - github-pr-workflow
+      - ree-paperclip-board-ops
+      - ree-paperclip-adapter-diagnosis
+      - ree-paperclip-instance-admin
 ---
 
 # ree-hermes-paperclip-method — Método Hermes→Paperclip
