@@ -86,11 +86,11 @@ python3 scripts/validate-skills-catalog.py
 
 ## Riesgos y mitigación
 
-- **Riesgo:** meter topología histórica no vigente.  
+- **Riesgo:** meter topología histórica no vigente.
   **Mitigación:** exigir evidencia de portabilidad; descartar detalles host-específicos.
-- **Riesgo:** mezclar cambios no relacionados.  
+- **Riesgo:** mezclar cambios no relacionados.
   **Mitigación:** rama/PR exclusiva Slice 4 infra.
-- **Riesgo:** perder señales del clon retirado.  
+- **Riesgo:** perder señales del clon retirado.
   **Mitigación:** respaldo completo ya guardado en `_rescate-git/2026-10-17/retirado-reevolutiva-skills/`.
 
 ## Definición de Done
