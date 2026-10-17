@@ -1,6 +1,6 @@
 # Estado de avance — 2026-10-17
 
-**Fase activa:** Consolidación de slices Paperclip: board-ops (Slice 1 ✓), adapter-diagnosis (Slice 2 ✓), instance-admin (Slice 3 ✓). Pendiente: Slice 4 (adjudicación de divergencias) y Slice 5 (related_skills de ree-hermes-paperclip-method).
+**Fase activa:** Adjudicación de divergencias (Slice 4). Slices 1, 2, 3 y 5 completados en la rama del PR #17; pendiente adjudicar divergencias del rescate.
 
 ## Slice 1 ✓ — ree-paperclip-board-ops
 
@@ -28,10 +28,10 @@
 - 3 skills de infraestructura con divergencias (`reevolutiva-infra-gitops`, `wordpress-bedrock-migration`, `wordpress-performance-diagnosis`) + archivos nuevos según `rescate/2026-10-15/MANIFEST.md`.
 - Fases: 4a Investigar → 4b Decidir → 4c Implementar → 4d Revisar.
 
-## Slice 5 — related_skills de ree-hermes-paperclip-method (pendiente)
+## Slice 5 ✓ — related_skills de ree-hermes-paperclip-method
 
-- `ree-hermes-paperclip-method` referencia skills que no existen en el tap (`ree-intake`, `sdlc-review`, `github-pr-workflow`).
-- Debe actualizarse a `[ree-paperclip-board-ops, ree-paperclip-adapter-diagnosis, ree-paperclip-instance-admin]`.
+- Commit `3812fca` en PR #17. Se reemplazaron las referencias inexistentes `ree-intake`, `sdlc-review`, `github-pr-workflow` por `ree-paperclip-board-ops`, `ree-paperclip-adapter-diagnosis` y `ree-paperclip-instance-admin`; se conserva `ree-learn`.
+- Validación YAML: los cuatro `related_skills` existen en el tap.
 
 ## Artefactos
 
@@ -42,3 +42,4 @@
 - `skills/ree-paperclip-board-ops/SKILL.md` — Slice 1 (mergeado).
 - `skills/ree-paperclip-adapter-diagnosis/SKILL.md` — Slice 2 (en PR #17 Draft).
 - `skills/ree-paperclip-instance-admin/SKILL.md` — Slice 3 (en PR #17 Draft).
+- `skills/ree-hermes-paperclip-method/SKILL.md` — Slice 5 (related_skills actualizado en PR #17 Draft).
